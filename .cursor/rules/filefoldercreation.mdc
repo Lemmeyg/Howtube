@@ -1,0 +1,9 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+Whenever you are creating a new file or folder, before deciding where to create it, review [Archtitecture.md](mdc:howtube/Docs/Archtitecture.md) to ensure there is no replication or repetition of files and that it is optimally located for simplicity and logic
+
+Once you have created a file, ensure to accurately update [Archtitecture.md](mdc:howtube/Docs/Archtitecture.md) to reflect the new file or folders location and contents.

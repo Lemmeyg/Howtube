@@ -1,0 +1,364 @@
+"use client"
+
+import { useState } from "react"
+import Link from "next/link"
+import { motion } from "framer-motion"
+import { useTheme } from "next-themes"
+import { Book, ChevronDown, ChevronRight, FileText, HelpCircle, Menu, Moon, Search, Sun, User, X } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+
+// Mock data for documentation
+const documentationCategories = [
+  {
+    id: 1,
+    title: "Getting Started",
+    icon: Book,
+    documents: [
+      {
+        id: 101,
+        title: "Introduction to DocuLearn",
+        description: "Learn about the core features and benefits of DocuLearn.",
+        url: "/documentation/introduction",
+      },
+      {
+        id: 102,
+        title: "Creating Your First Document",
+        description: "A step-by-step guide to creating your first documentation.",
+        url: "/documentation/first-document",
+      },
+      {
+        id: 103,
+        title: "Understanding the Dashboard",
+        description: "Navigate and use the DocuLearn dashboard effectively.",
+        url: "/documentation/dashboard",
+      },
+    ],
+  },
+  {
+    id: 2,
+    title: "Advanced Features",
+    icon: FileText,
+    documents: [
+      {
+        id: 201,
+        title: "Custom Templates",
+        description: "Create and use custom templates for your documentation.",
+        url: "/documentation/templates",
+      },
+      {
+        id: 202,
+        title: "Interactive Elements",
+        description: "Add quizzes, checkpoints, and other interactive elements.",
+        url: "/documentation/interactive",
+      },
+      {
+        id: 203,
+        title: "Collaboration Tools",
+        description: "Work with your team to create and improve documentation.",
+        url: "/documentation/collaboration",
+      },
+    ],
+  },
+  {
+    id: 3,
+    title: "Frequently Asked Questions",
+    icon: HelpCircle,
+    documents: [
+      {
+        id: 301,
+        title: "Account Management",
+        description: "Answers to common questions about managing your account.",
+        url: "/documentation/faq-account",
+      },
+      {
+        id: 302,
+        title: "Billing and Subscriptions",
+        description: "Information about billing, pricing, and subscription plans.",
+        url: "/documentation/faq-billing",
+      },
+      {
+        id: 303,
+        title: "Troubleshooting",
+        description: "Solutions to common issues and technical problems.",
+        url: "/documentation/faq-troubleshooting",
+      },
+    ],
+  },
+]
+
+export default function Documentation() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { theme, setTheme } = useTheme()
+  const [searchQuery, setSearchQuery] = useState("")
+
+  // Filter documentation based on search query
+  const filteredDocumentation = documentationCategories
+    .map((category) => ({
+      ...category,
+      documents: category.documents.filter(
+        (doc) =>
+          doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          doc.description.toLowerCase().includes(searchQuery.toLowerCase()),
+      ),
+    }))
+    .filter((category) => category.documents.length > 0)
+
+  const fadeInUp = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.6 } },
+  }
+
+  const staggerContainer = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.2,
+      },
+    },
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur">
+        <div className="container flex h-16 items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FileText className="h-6 w-6 text-youtube-red" />
+            <span className="text-xl font-light">DocuLearn</span>
+          </div>
+
+          {/* Desktop Navigation */}
+          <nav className="hidden md:flex items-center gap-6">
+            <Link href="/dashboard" className="text-sm font-light hover:text-youtube-red">
+              Dashboard
+            </Link>
+            <Link href="#features" className="text-sm font-light hover:text-youtube-red">
+              Features
+            </Link>
+            <Link href="#testimonials" className="text-sm font-light hover:text-youtube-red">
+              Testimonials
+            </Link>
+            <Link href="#examples" className="text-sm font-light hover:text-youtube-red">
+              Examples
+            </Link>
+            <Link href="/pricing" className="text-sm font-light hover:text-youtube-red">
+              Pricing
+            </Link>
+            <Link href="/documentation" className="text-sm font-light hover:text-youtube-red">
+              Documentation
+            </Link>
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-4"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+
+            {/* Account Settings Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  <span>John Doe</span>
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem asChild>
+                  <Link href="/account/profile" className="flex items-center gap-2 cursor-pointer">
+                    <User className="h-4 w-4" />
+                    <span>Profile</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/account/billing" className="flex items-center gap-2 cursor-pointer">
+                    <FileText className="h-4 w-4" />
+                    <span>Billing</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/account/usage" className="flex items-center gap-2 cursor-pointer">
+                    <FileText className="h-4 w-4" />
+                    <span>Usage</span>
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </nav>
+
+          {/* Mobile Menu Button */}
+          <div className="flex items-center gap-4 md:hidden">
+            <Button variant="outline" size="icon" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+            <Button variant="outline" size="icon" onClick={() => setMobileMenuOpen(true)}>
+              <Menu className="h-5 w-5" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Mobile Menu */}
+        {mobileMenuOpen && (
+          <div className="fixed inset-0 z-50 bg-background md:hidden">
+            <div className="container flex h-16 items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="h-6 w-6 text-youtube-red" />
+                <span className="text-xl font-light">DocuLearn</span>
+              </div>
+              <Button variant="outline" size="icon" onClick={() => setMobileMenuOpen(false)}>
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+            <nav className="container grid gap-6 py-8">
+              <Link
+                href="/dashboard"
+                className="text-lg font-light hover:text-youtube-red"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Dashboard
+              </Link>
+              <Link
+                href="#features"
+                className="text-lg font-light hover:text-youtube-red"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Features
+              </Link>
+              <Link
+                href="#testimonials"
+                className="text-lg font-light hover:text-youtube-red"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Testimonials
+              </Link>
+              <Link
+                href="#examples"
+                className="text-lg font-light hover:text-youtube-red"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Examples
+              </Link>
+              <Link
+                href="/pricing"
+                className="text-lg font-light hover:text-youtube-red"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Pricing
+              </Link>
+              <Link
+                href="/documentation"
+                className="text-lg font-light hover:text-youtube-red"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Documentation
+              </Link>
+              <Link
+                href="/account/profile"
+                className="text-lg font-light hover:text-youtube-red"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Profile
+              </Link>
+            </nav>
+          </div>
+        )}
+      </header>
+
+      <main className="container py-10">
+        {/* Documentation Header */}
+        <motion.div
+          className="flex flex-col items-center text-center space-y-8 mb-12"
+          initial="hidden"
+          animate="visible"
+          variants={fadeInUp}
+        >
+          <div className="space-y-4 max-w-3xl">
+            <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl">Documentation & Help Center</h1>
+            <p className="text-muted-foreground">
+              Find guides, tutorials, and answers to frequently asked questions about DocuLearn.
+            </p>
+          </div>
+
+          <div className="w-full max-w-2xl">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Search documentation..."
+                className="pl-10 focus-visible:ring-youtube-red"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Documentation Content */}
+        <motion.div
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+          variants={staggerContainer}
+          initial="hidden"
+          animate="visible"
+        >
+          {filteredDocumentation.map((category) => (
+            <motion.div key={category.id} variants={fadeInUp}>
+              <Card className="h-full">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <category.icon className="h-5 w-5 text-youtube-red" />
+                    <CardTitle>{category.title}</CardTitle>
+                  </div>
+                  <CardDescription>
+                    {category.documents.length} {category.documents.length === 1 ? "document" : "documents"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Accordion type="single" collapsible className="w-full">
+                    {category.documents.map((doc) => (
+                      <AccordionItem key={doc.id} value={`item-${doc.id}`}>
+                        <AccordionTrigger className="text-left hover:text-youtube-red">{doc.title}</AccordionTrigger>
+                        <AccordionContent>
+                          <p className="mb-4 text-muted-foreground">{doc.description}</p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-youtube-red border-youtube-red hover:bg-youtube-red/10"
+                            asChild
+                          >
+                            <Link href={doc.url}>
+                              Read More <ChevronRight className="ml-2 h-4 w-4" />
+                            </Link>
+                          </Button>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
+        </motion.div>
+
+        {/* No Results */}
+        {filteredDocumentation.length === 0 && (
+          <motion.div className="text-center py-12" initial="hidden" animate="visible" variants={fadeInUp}>
+            <HelpCircle className="mx-auto h-12 w-12 text-muted-foreground" />
+            <h3 className="mt-4 text-lg font-medium">No documentation found</h3>
+            <p className="mt-2 text-muted-foreground">Try adjusting your search query or browse all documentation.</p>
+            <Button className="mt-6 bg-youtube-red hover:bg-youtube-darkred" onClick={() => setSearchQuery("")}>
+              View All Documentation
+            </Button>
+          </motion.div>
+        )}
+      </main>
+    </div>
+  )
+}

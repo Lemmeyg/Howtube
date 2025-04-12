@@ -1,0 +1,451 @@
+"use client"
+
+import type React from "react"
+
+import { useState } from "react"
+import Link from "next/link"
+import { motion } from "framer-motion"
+import { useTheme } from "next-themes"
+import {
+  Calendar,
+  CheckCircle,
+  ChevronDown,
+  Clock,
+  Download,
+  Edit2,
+  Eye,
+  FileText,
+  Menu,
+  Moon,
+  Plus,
+  Search,
+  Settings,
+  Sun,
+  User,
+  X,
+} from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
+// Mock data for documents
+const documents = [
+  {
+    id: 1,
+    title: "Introduction to Biology",
+    thumbnail: "/placeholder.svg?height=200&width=350",
+    status: "Published",
+    date: "2023-04-15",
+  },
+  {
+    id: 2,
+    title: "Advanced Mathematics: Calculus",
+    thumbnail: "/placeholder.svg?height=200&width=350",
+    status: "Draft",
+    date: "2023-05-22",
+  },
+  {
+    id: 3,
+    title: "Chemistry Lab Safety Procedures",
+    thumbnail: "/placeholder.svg?height=200&width=350",
+    status: "Published",
+    date: "2023-03-10",
+  },
+  {
+    id: 4,
+    title: "History of Ancient Civilizations",
+    thumbnail: "/placeholder.svg?height=200&width=350",
+    status: "Published",
+    date: "2023-06-05",
+  },
+  {
+    id: 5,
+    title: "Introduction to Programming with Python",
+    thumbnail: "/placeholder.svg?height=200&width=350",
+    status: "Draft",
+    date: "2023-07-18",
+  },
+  {
+    id: 6,
+    title: "English Literature: Shakespeare",
+    thumbnail: "/placeholder.svg?height=200&width=350",
+    status: "Published",
+    date: "2023-02-28",
+  },
+]
+
+export default function Dashboard() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { theme, setTheme } = useTheme()
+  const [url, setUrl] = useState("")
+  const [searchQuery, setSearchQuery] = useState("")
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    // Handle form submission
+    console.log({ url })
+    // Reset form
+    setUrl("")
+  }
+
+  const filteredDocuments = documents.filter((doc) => doc.title.toLowerCase().includes(searchQuery.toLowerCase()))
+
+  const fadeInUp = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.6 } },
+  }
+
+  const staggerContainer = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.2,
+      },
+    },
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur">
+        <div className="container flex h-16 items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FileText className="h-6 w-6 text-youtube-red" />
+            <span className="text-xl font-light">DocuLearn</span>
+          </div>
+
+          {/* Desktop Navigation */}
+          <nav className="hidden md:flex items-center gap-6">
+            <Link href="#features" className="text-sm font-light hover:text-youtube-red">
+              Features
+            </Link>
+            <Link href="#testimonials" className="text-sm font-light hover:text-youtube-red">
+              Testimonials
+            </Link>
+            <Link href="#examples" className="text-sm font-light hover:text-youtube-red">
+              Examples
+            </Link>
+            <Link href="/pricing" className="text-sm font-light hover:text-youtube-red">
+              Pricing
+            </Link>
+            <Link href="/documentation" className="text-sm font-light hover:text-youtube-red">
+              Documentation
+            </Link>
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-4"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+
+            {/* Account Settings Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  <span>John Doe</span>
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem asChild>
+                  <Link href="/account/profile" className="flex items-center gap-2 cursor-pointer">
+                    <User className="h-4 w-4" />
+                    <span>Profile</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/account/billing" className="flex items-center gap-2 cursor-pointer">
+                    <FileText className="h-4 w-4" />
+                    <span>Billing</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/account/usage" className="flex items-center gap-2 cursor-pointer">
+                    <CheckCircle className="h-4 w-4" />
+                    <span>Usage</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/account/settings" className="flex items-center gap-2 cursor-pointer">
+                    <Settings className="h-4 w-4" />
+                    <span>Settings</span>
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </nav>
+
+          {/* Mobile Menu Button */}
+          <div className="flex items-center gap-4 md:hidden">
+            <Button variant="outline" size="icon" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+            <Button variant="outline" size="icon" onClick={() => setMobileMenuOpen(true)}>
+              <Menu className="h-5 w-5" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Mobile Menu */}
+        {mobileMenuOpen && (
+          <div className="fixed inset-0 z-50 bg-background md:hidden">
+            <div className="container flex h-16 items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="h-6 w-6 text-youtube-red" />
+                <span className="text-xl font-light">DocuLearn</span>
+              </div>
+              <Button variant="outline" size="icon" onClick={() => setMobileMenuOpen(false)}>
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+            <nav className="container grid gap-6 py-8">
+              <Link
+                href="#features"
+                className="text-lg font-light hover:text-youtube-red"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Features
+              </Link>
+              <Link
+                href="#testimonials"
+                className="text-lg font-light hover:text-youtube-red"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Testimonials
+              </Link>
+              <Link
+                href="#examples"
+                className="text-lg font-light hover:text-youtube-red"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Examples
+              </Link>
+              <Link
+                href="/pricing"
+                className="text-lg font-light hover:text-youtube-red"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Pricing
+              </Link>
+              <Link
+                href="/documentation"
+                className="text-lg font-light hover:text-youtube-red"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Documentation
+              </Link>
+              <Link
+                href="/account/profile"
+                className="text-lg font-light hover:text-youtube-red"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Profile
+              </Link>
+              <Link
+                href="/account/billing"
+                className="text-lg font-light hover:text-youtube-red"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Billing
+              </Link>
+              <Link
+                href="/account/usage"
+                className="text-lg font-light hover:text-youtube-red"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Usage
+              </Link>
+              <Link
+                href="/account/settings"
+                className="text-lg font-light hover:text-youtube-red"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Settings
+              </Link>
+            </nav>
+          </div>
+        )}
+      </header>
+
+      <main className="container py-10">
+        {/* URL Submission Form */}
+        <motion.div
+          className="flex flex-col items-center text-center space-y-8 mb-12"
+          initial="hidden"
+          animate="visible"
+          variants={fadeInUp}
+        >
+          <div className="space-y-4 max-w-3xl">
+            <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl">Create New Documentation</h1>
+            <p className="text-muted-foreground">
+              Enter a YouTube URL to generate comprehensive, step-by-step documentation.
+            </p>
+          </div>
+
+          <div className="w-full max-w-2xl space-y-4 bg-card p-6 rounded-lg shadow-lg border">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="url">Enter YouTube URL</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="url"
+                    type="url"
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    required
+                    className="flex-1 focus-visible:ring-youtube-red"
+                  />
+                  <Button type="submit" className="bg-youtube-red hover:bg-youtube-darkred">
+                    Generate
+                  </Button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </motion.div>
+
+        {/* Document Library */}
+        <motion.div className="space-y-6" initial="hidden" animate="visible" variants={fadeInUp}>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <h2 className="text-2xl font-bold">Your Documents</h2>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <div className="relative flex-1 sm:w-64">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Search documents..."
+                  className="pl-8 w-full focus-visible:ring-youtube-red"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <Button className="bg-youtube-red hover:bg-youtube-darkred">
+                <Plus className="h-4 w-4 mr-2" /> New
+              </Button>
+            </div>
+          </div>
+
+          <Tabs defaultValue="all" className="w-full">
+            <TabsList className="mb-4">
+              <TabsTrigger value="all">All Documents</TabsTrigger>
+              <TabsTrigger value="published">Published</TabsTrigger>
+              <TabsTrigger value="drafts">Drafts</TabsTrigger>
+            </TabsList>
+            <TabsContent value="all" className="mt-0">
+              <motion.div
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                variants={staggerContainer}
+                initial="hidden"
+                animate="visible"
+              >
+                {filteredDocuments.map((doc) => (
+                  <motion.div key={doc.id} variants={fadeInUp}>
+                    <DocumentCard document={doc} />
+                  </motion.div>
+                ))}
+              </motion.div>
+            </TabsContent>
+            <TabsContent value="published" className="mt-0">
+              <motion.div
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                variants={staggerContainer}
+                initial="hidden"
+                animate="visible"
+              >
+                {filteredDocuments
+                  .filter((doc) => doc.status === "Published")
+                  .map((doc) => (
+                    <motion.div key={doc.id} variants={fadeInUp}>
+                      <DocumentCard document={doc} />
+                    </motion.div>
+                  ))}
+              </motion.div>
+            </TabsContent>
+            <TabsContent value="drafts" className="mt-0">
+              <motion.div
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                variants={staggerContainer}
+                initial="hidden"
+                animate="visible"
+              >
+                {filteredDocuments
+                  .filter((doc) => doc.status === "Draft")
+                  .map((doc) => (
+                    <motion.div key={doc.id} variants={fadeInUp}>
+                      <DocumentCard document={doc} />
+                    </motion.div>
+                  ))}
+              </motion.div>
+            </TabsContent>
+          </Tabs>
+        </motion.div>
+      </main>
+    </div>
+  )
+}
+
+interface DocumentCardProps {
+  document: {
+    id: number
+    title: string
+    thumbnail: string
+    status: string
+    date: string
+  }
+}
+
+function DocumentCard({ document }: DocumentCardProps) {
+  return (
+    <Card className="overflow-hidden transition-all hover:shadow-md">
+      <div className="aspect-video overflow-hidden">
+        <img
+          src={document.thumbnail || "/placeholder.svg"}
+          alt={document.title}
+          className="h-full w-full object-cover transition-transform hover:scale-105"
+        />
+      </div>
+      <CardHeader className="p-4">
+        <div className="flex justify-between items-start">
+          <h3 className="font-semibold text-lg line-clamp-2">{document.title}</h3>
+          <span
+            className={`text-xs px-2 py-1 rounded-full ${
+              document.status === "Published"
+                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
+                : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100"
+            }`}
+          >
+            {document.status}
+          </span>
+        </div>
+      </CardHeader>
+      <CardContent className="p-4 pt-0">
+        <div className="flex items-center text-sm text-muted-foreground">
+          <Calendar className="h-4 w-4 mr-1" />
+          <span>{new Date(document.date).toLocaleDateString()}</span>
+          <Clock className="h-4 w-4 ml-3 mr-1" />
+          <span>10 min read</span>
+        </div>
+      </CardContent>
+      <CardFooter className="p-4 pt-0 flex justify-between">
+        <Button variant="outline" size="sm" className="text-youtube-red border-youtube-red hover:bg-youtube-red/10">
+          <Eye className="h-4 w-4 mr-1" /> View
+        </Button>
+        <Button variant="outline" size="sm" className="text-youtube-red border-youtube-red hover:bg-youtube-red/10">
+          <Edit2 className="h-4 w-4 mr-1" /> Edit
+        </Button>
+        <Button variant="outline" size="sm" className="text-youtube-red border-youtube-red hover:bg-youtube-red/10">
+          <Download className="h-4 w-4 mr-1" /> Download
+        </Button>
+      </CardFooter>
+    </Card>
+  )
+}

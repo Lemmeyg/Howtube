@@ -1,0 +1,16 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+
+When resolving an issue or addressing error message:
+
+- review the whole message before starting to consider next steps
+- identify all different errors in the messages
+- take a methodical approach to creating a solution.
+- Always seek to address the cause of the issue, not the symptom.
+- Do not settle for a work around 
+- look the create the simpliest, most effective solution.
+- A great solution requires the least code changes, resolves the issue, is less likely to cause issues else where in the application.
+ - before creating new files and folders, check [Archtitecture.md](mdc:Archtitecture.md) and the codebase to ensure the file or folders aren't located elsewhere in the application.
