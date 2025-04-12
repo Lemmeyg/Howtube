@@ -69,7 +69,7 @@ export default function DashboardPage() {
       const { error } = await supabase.auth.signOut()
       if (error) throw error
       toast.success("Successfully signed out!")
-      router.push("/auth/sign-in")
+      router.push("/sign-in")
     } catch (error) {
       toast.error("Error signing out.")
       console.error("Error:", error)

@@ -20,18 +20,35 @@ export function SignInForm() {
     setLoading(true)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      console.log("Attempting sign in with:", { email })
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      if (error) throw error
+      if (error) {
+        console.error("Sign in error:", error.message)
+        throw error
+      }
 
-      toast.success("Successfully signed in!")
-      router.push("/dashboard")
-    } catch (error) {
-      toast.error("Error signing in. Please check your credentials.")
-      console.error("Error signing in:", error)
+      if (data?.session) {
+        console.log("Sign in successful:", {
+          user: data.session.user.email,
+          sessionId: data.session.access_token ? "Present" : "Missing"
+        })
+        
+        // Set the session in the client
+        await supabase.auth.setSession(data.session)
+        
+        toast.success("Successfully signed in!")
+        
+        // Use router.push for client-side navigation
+        router.push("/dashboard")
+        router.refresh()
+      }
+    } catch (error: any) {
+      console.error("Sign in process error:", error.message)
+      toast.error(error.message || "Error signing in")
     } finally {
       setLoading(false)
     }
@@ -54,6 +71,7 @@ export function SignInForm() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              autoComplete="email"
             />
           </div>
           <div className="space-y-2">
@@ -64,6 +82,7 @@ export function SignInForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              autoComplete="current-password"
             />
           </div>
         </CardContent>
@@ -75,7 +94,7 @@ export function SignInForm() {
             type="button"
             variant="outline"
             className="w-full"
-            onClick={() => router.push("/auth/sign-up")}
+            onClick={() => router.push("/sign-up")}
           >
             Create an account
           </Button>

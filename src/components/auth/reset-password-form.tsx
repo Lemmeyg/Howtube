@@ -20,13 +20,13 @@ export function ResetPasswordForm() {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/update-password`,
+        redirectTo: `${window.location.origin}/update-password`,
       })
 
       if (error) throw error
 
       toast.success("Check your email for the password reset link!")
-      router.push("/auth/sign-in")
+      router.push("/sign-in")
     } catch (error) {
       toast.error("Error sending reset link. Please try again.")
       console.error("Error resetting password:", error)
@@ -63,7 +63,7 @@ export function ResetPasswordForm() {
             type="button"
             variant="outline"
             className="w-full"
-            onClick={() => router.push("/auth/sign-in")}
+            onClick={() => router.push("/sign-in")}
           >
             Back to Sign In
           </Button>

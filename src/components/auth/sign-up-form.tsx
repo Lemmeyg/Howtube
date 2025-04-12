@@ -31,14 +31,14 @@ export function SignUpForm() {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: `${window.location.origin}/callback`,
         },
       })
 
       if (error) throw error
 
       toast.success("Check your email for the confirmation link!")
-      router.push("/auth/sign-in")
+      router.push("/sign-in")
     } catch (error) {
       toast.error("Error signing up. Please try again.")
       console.error("Error signing up:", error)
@@ -95,7 +95,7 @@ export function SignUpForm() {
             type="button"
             variant="outline"
             className="w-full"
-            onClick={() => router.push("/auth/sign-in")}
+            onClick={() => router.push("/sign-in")}
           >
             Already have an account? Sign in
           </Button>
