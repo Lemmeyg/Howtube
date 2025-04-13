@@ -2,7 +2,6 @@ import axios from 'axios';
 import path from 'path';
 import fs from 'fs';
 import { mkdir } from 'fs/promises';
-import youtubeDl from 'youtube-dl-exec';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
@@ -15,125 +14,170 @@ const assembly = axios.create({
   },
 });
 
+const ASSEMBLY_AI_API_KEY = process.env.ASSEMBLY_AI_API_KEY;
+const ASSEMBLY_AI_API = 'https://api.assemblyai.com/v2';
+
+// Common Windows installation paths for yt-dlp
+const YT_DLP_PATHS = [
+  path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'WinGet', 'Packages', 'yt-dlp.yt-dlp_*', 'yt-dlp.exe'),
+  path.join(process.env.PROGRAMFILES || '', 'yt-dlp', 'yt-dlp.exe'),
+  path.join(process.env.PROGRAMFILES || '', 'yt-dlp', 'yt-dlp'),
+  path.join(process.env.APPDATA || '', 'yt-dlp', 'yt-dlp.exe'),
+  path.join(process.env.APPDATA || '', 'yt-dlp', 'yt-dlp'),
+  'C:\\yt-dlp\\yt-dlp.exe',
+  'C:\\yt-dlp\\yt-dlp',
+  path.join(process.cwd(), 'yt-dlp.exe'),
+  path.join(process.cwd(), 'yt-dlp')
+];
+
 async function findYtDlp(): Promise<string> {
+  // First try the command directly in case it's in PATH
   try {
-    // Try using where command for PATH lookup first
-    const { stdout } = await execAsync('where yt-dlp');
-    if (stdout.trim()) {
-      const paths = stdout.split('\n').map(p => p.trim());
-      // Return the first valid path
-      for (const p of paths) {
-        if (fs.existsSync(p)) {
-          return p;
-        }
-      }
-    }
+    await execAsync('yt-dlp --version');
+    return 'yt-dlp';
   } catch (error) {
-    console.log('yt-dlp not found in PATH, checking other locations...');
+    console.log('yt-dlp not found in PATH, checking specific locations...');
   }
 
-  // Check other possible locations
+  // Common installation paths to check
   const possiblePaths = [
-    path.join(process.env.APPDATA || '', 'Python', 'Python313', 'Scripts', 'yt-dlp.exe'),
-    'C:\\Python313\\Scripts\\yt-dlp.exe',
-    'C:\\Users\\Gordo\\AppData\\Local\\Microsoft\\WinGet\\Packages\\yt-dlp.yt-dlp_yt-dlp\\yt-dlp.exe'
+    // Winget installation paths
+    path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'WinGet', 'Packages', 'yt-dlp.yt-dlp_*', 'yt-dlp.exe'),
+    path.join(process.env.PROGRAMFILES || '', 'yt-dlp', 'yt-dlp.exe'),
+    path.join(process.env.PROGRAMFILES || '', 'yt-dlp', 'yt-dlp'),
+    path.join(process.env.PROGRAMFILES || '', 'yt-dlp', 'yt-dlp.exe'),
+    path.join(process.env.PROGRAMFILES || '', 'yt-dlp', 'yt-dlp'),
+    // User-specific paths
+    path.join(process.env.APPDATA || '', 'yt-dlp', 'yt-dlp.exe'),
+    path.join(process.env.APPDATA || '', 'yt-dlp', 'yt-dlp'),
+    // Common installation directories
+    'C:\\yt-dlp\\yt-dlp.exe',
+    'C:\\yt-dlp\\yt-dlp',
+    // Current directory
+    path.join(process.cwd(), 'yt-dlp.exe'),
+    path.join(process.cwd(), 'yt-dlp'),
   ];
 
-  for (const ytDlpPath of possiblePaths) {
-    if (fs.existsSync(ytDlpPath)) {
-      return ytDlpPath;
+  // Check each possible path
+  for (const possiblePath of possiblePaths) {
+    if (possiblePath.includes('*')) {
+      // Handle wildcard paths
+      const basePath = possiblePath.substring(0, possiblePath.indexOf('*'));
+      const dir = path.dirname(basePath);
+      try {
+        if (fs.existsSync(dir)) {
+          const files = fs.readdirSync(dir);
+          const matchingDir = files.find(f => f.startsWith('yt-dlp.yt-dlp_yt-dlp_'));
+          if (matchingDir) {
+            const fullPath = path.join(dir, matchingDir, 'yt-dlp.exe');
+            if (fs.existsSync(fullPath)) {
+              console.log('Found yt-dlp at:', fullPath);
+              return fullPath;
+            }
+          }
+        }
+      } catch (error) {
+        console.log('Error checking directory:', dir, error);
+      }
+    } else {
+      try {
+        if (fs.existsSync(possiblePath)) {
+          console.log('Found yt-dlp at:', possiblePath);
+          return possiblePath;
+        }
+      } catch (error) {
+        console.log('Error checking path:', possiblePath, error);
+      }
     }
-    console.log(`Tried path ${ytDlpPath}: Not found`);
   }
 
-  throw new Error('yt-dlp not found in any expected location. Please ensure it is installed correctly.');
+  // If we get here, we couldn't find yt-dlp
+  console.error('yt-dlp not found in any of the following locations:');
+  possiblePaths.forEach(path => console.error('-', path));
+  throw new Error('yt-dlp not found. Please install it using: winget install yt-dlp');
 }
 
-export async function downloadYouTubeAudio(youtubeUrl: string): Promise<string> {
-  const tempDir = path.join(process.cwd(), 'temp');
-  
-  // Create temp directory if it doesn't exist
-  if (!fs.existsSync(tempDir)) {
-    await mkdir(tempDir, { recursive: true });
-  }
-
-  // Generate a unique filename
-  const outputFile = path.join(tempDir, `${Date.now()}.mp3`);
-
+async function downloadYouTubeAudio(url: string): Promise<string> {
   try {
-    // Get the actual path to yt-dlp
-    const ytDlpPath = await findYtDlp();
-    console.log('Found yt-dlp at:', ytDlpPath);
+    // Create tmp directory if it doesn't exist
+    const tmpDir = path.join(process.cwd(), 'tmp');
+    await mkdir(tmpDir, { recursive: true });
+    
+    const outputPath = path.join(tmpDir, `${Date.now()}.mp3`);
+    console.log('Downloading audio to:', outputPath);
 
-    // Try direct command execution first
-    try {
-      await execAsync(`"${ytDlpPath}" -x --audio-format mp3 --output "${outputFile}" "${youtubeUrl}"`);
-      if (fs.existsSync(outputFile)) {
-        return outputFile;
-      }
-    } catch (directError) {
-      console.log('Direct command execution failed, falling back to youtube-dl-exec...');
+    // Find yt-dlp executable
+    const ytDlpPath = await findYtDlp();
+    console.log('Using yt-dlp at:', ytDlpPath);
+
+    // Use system yt-dlp directly
+    const command = `"${ytDlpPath}" -x --audio-format mp3 -o "${outputPath}" "${url}"`;
+    console.log('Executing command:', command);
+    
+    const { stdout, stderr } = await execAsync(command);
+    console.log('Download stdout:', stdout);
+    if (stderr) console.log('Download stderr:', stderr);
+
+    // Verify the file was created
+    if (!fs.existsSync(outputPath)) {
+      throw new Error('Audio file was not created');
     }
 
-    // Fallback to youtube-dl-exec
-    const ytdl = youtubeDl.create({ cwd: tempDir, binary: ytDlpPath });
-    await ytdl(youtubeUrl, {
-      extractAudio: true,
-      audioFormat: 'mp3',
-      output: path.basename(outputFile),
-      noCheckCertificates: true,
-      noWarnings: true,
-      preferFreeFormats: true,
-      addHeader: [
-        'referer:youtube.com',
-        'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-      ]
-    });
+    // Verify the file size is greater than 0
+    const stats = fs.statSync(outputPath);
+    if (stats.size === 0) {
+      throw new Error('Downloaded audio file is empty');
+    }
 
-    return outputFile;
+    return outputPath;
   } catch (error) {
     console.error('Error downloading YouTube audio:', error);
-    throw new Error(`Failed to download YouTube audio: ${error.message}`);
+    throw new Error(`Failed to download audio: ${error.message}`);
   }
 }
 
-export async function uploadAudioFile(audioPath: string): Promise<string> {
+async function uploadAudioFile(audioPath: string): Promise<string> {
   try {
-    // Read the audio file
-    const audioData = fs.readFileSync(audioPath);
-
-    // Upload to AssemblyAI
-    const response = await assembly.post('/upload', audioData, {
+    const data = fs.readFileSync(audioPath);
+    const response = await axios.post(`${ASSEMBLY_AI_API}/upload`, data, {
       headers: {
-        'Content-Type': 'application/octet-stream',
-      },
+        'authorization': ASSEMBLY_AI_API_KEY,
+        'content-type': 'application/octet-stream'
+      }
     });
-
-    // Clean up the temporary file
-    fs.unlinkSync(audioPath);
-
     return response.data.upload_url;
   } catch (error) {
     console.error('Error uploading audio:', error);
-    // Clean up the temporary file even if upload fails
-    if (fs.existsSync(audioPath)) {
-      fs.unlinkSync(audioPath);
-    }
     throw new Error('Failed to upload audio to AssemblyAI');
+  } finally {
+    // Clean up the temporary audio file
+    try {
+      fs.unlinkSync(audioPath);
+    } catch (error) {
+      console.error('Error cleaning up audio file:', error);
+    }
   }
 }
 
-export async function transcribeAudio(uploadUrl: string) {
+export async function transcribeAudio(audioUrl: string) {
   try {
-    // Submit the audio file for transcription
-    const response = await assembly.post('/transcript', {
-      audio_url: uploadUrl,
-    });
-
+    const response = await axios.post(
+      `${ASSEMBLY_AI_API}/transcript`,
+      {
+        audio_url: audioUrl,
+        speaker_labels: true
+      },
+      {
+        headers: {
+          'authorization': ASSEMBLY_AI_API_KEY,
+          'content-type': 'application/json'
+        }
+      }
+    );
     return response.data;
   } catch (error) {
-    console.error('Error submitting transcription:', error);
-    throw new Error('Failed to submit audio for transcription');
+    console.error('Error starting transcription:', error);
+    throw new Error('Failed to start transcription');
   }
 }
 
@@ -147,17 +191,63 @@ export async function getTranscriptionResult(transcriptId: string) {
   }
 }
 
-export async function pollTranscriptionResult(transcriptId: string): Promise<any> {
-  let result = await getTranscriptionResult(transcriptId);
-  
-  while (result.status !== 'completed' && result.status !== 'error') {
-    await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
-    result = await getTranscriptionResult(transcriptId);
-  }
+export async function pollTranscriptionResult(transcriptId: string) {
+  try {
+    while (true) {
+      const response = await axios.get(`${ASSEMBLY_AI_API}/transcript/${transcriptId}`, {
+        headers: { authorization: ASSEMBLY_AI_API_KEY }
+      });
 
-  if (result.status === 'error') {
-    throw new Error('Transcription failed: ' + result.error);
-  }
+      if (response.data.status === 'completed') {
+        return response.data;
+      } else if (response.data.status === 'error') {
+        throw new Error('Transcription failed: ' + response.data.error);
+      }
 
-  return result;
+      // Wait before polling again
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+  } catch (error) {
+    console.error('Error polling transcription:', error);
+    throw new Error('Failed to get transcription results');
+  }
+}
+
+export async function downloadAndTranscribe(
+  youtubeUrl: string,
+  progressCallback: (progress: number, status: string, error?: string) => void
+) {
+  try {
+    // Start downloading
+    progressCallback(10, 'downloading');
+    console.log('Starting YouTube audio download...');
+    const audioPath = await downloadYouTubeAudio(youtubeUrl);
+    console.log('Audio downloaded successfully:', audioPath);
+    
+    // Start uploading
+    progressCallback(40, 'uploading');
+    console.log('Uploading audio to AssemblyAI...');
+    const uploadUrl = await uploadAudioFile(audioPath);
+    console.log('Audio uploaded successfully');
+    
+    // Start transcribing
+    progressCallback(60, 'transcribing');
+    console.log('Starting transcription...');
+    const transcription = await transcribeAudio(uploadUrl);
+    console.log('Transcription started, ID:', transcription.id);
+    
+    // Polling for results
+    progressCallback(80, 'processing');
+    console.log('Polling for transcription results...');
+    const result = await pollTranscriptionResult(transcription.id);
+    console.log('Transcription completed');
+
+    // Complete
+    progressCallback(100, 'completed');
+    return result;
+  } catch (error) {
+    console.error('Error in processing:', error);
+    progressCallback(0, 'error', error.message);
+    throw error;
+  }
 } 

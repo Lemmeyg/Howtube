@@ -31,6 +31,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
 import { YouTubeUrlForm } from "@/components/video-processing/url-submission-form"
+import { Progress } from "@/components/ui/progress"
 
 interface Video {
   id: string
@@ -39,6 +40,7 @@ interface Video {
   transcription: string | null
   created_at: string
   error_message: string | null
+  progress: number
 }
 
 export default function DashboardPage() {
@@ -52,21 +54,50 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchVideos()
     
-    // Subscribe to realtime updates
     const channel = supabase
       .channel('videos')
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'UPDATE',
           schema: 'public',
-          table: 'videos'
+          table: 'videos',
+          filter: 'id=eq.*'
         },
-        () => {
-          fetchVideos()
+        (payload) => {
+          console.log('Realtime update received:', {
+            eventType: payload.eventType,
+            new: payload.new,
+            old: payload.old,
+            timestamp: new Date().toISOString()
+          });
+          
+          setVideos(prevVideos => {
+            const updatedVideos = prevVideos.map(video => {
+              if (video.id === payload.new.id) {
+                console.log('Updating video state:', {
+                  id: video.id,
+                  oldProgress: video.progress,
+                  newProgress: payload.new.progress,
+                  oldStatus: video.status,
+                  newStatus: payload.new.status,
+                  timestamp: new Date().toISOString()
+                });
+                return { ...video, ...payload.new };
+              }
+              return video;
+            });
+            return updatedVideos;
+          });
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Successfully subscribed to video updates');
+        } else {
+          console.error('Failed to subscribe to video updates:', status);
+        }
+      })
 
     return () => {
       supabase.removeChannel(channel)
@@ -75,23 +106,34 @@ export default function DashboardPage() {
 
   const fetchVideos = async () => {
     try {
+      setLoading(true);
+      console.log('Fetching videos...');
       const { data: videos, error } = await supabase
         .from('videos')
         .select('*')
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: false });
 
       if (error) {
-        throw error
+        throw error;
       }
 
-      setVideos(videos || [])
+      // Ensure status and progress are properly set
+      const processedVideos = (videos || []).map(video => ({
+        ...video,
+        status: video.status || 'processing',
+        progress: video.progress || 0,
+        error_message: video.error_message || null
+      }));
+
+      console.log('Processed videos:', processedVideos);
+      setVideos(processedVideos);
     } catch (error) {
-      console.error('Error fetching videos:', error)
-      toast.error('Failed to load videos')
+      console.error('Error fetching videos:', error);
+      toast.error('Failed to load videos');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const filteredVideos = videos.filter(video => 
     video.youtube_url.toLowerCase().includes(searchQuery.toLowerCase())
@@ -165,7 +207,7 @@ export default function DashboardPage() {
               <Card key={video.id} className="overflow-hidden">
                 <CardContent className="p-4">
                   <h3 className="font-semibold mb-2 break-all">{video.youtube_url}</h3>
-                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
                     <span className="flex items-center gap-1">
                       <Clock className="h-4 w-4" />
                       {new Date(video.created_at).toLocaleDateString()}
@@ -185,6 +227,14 @@ export default function DashboardPage() {
                       {video.status}
                     </span>
                   </div>
+                  {video.status !== "completed" && video.status !== "error" && (
+                    <div className="space-y-2">
+                      <Progress value={video.progress} className="h-2" />
+                      <p className="text-xs text-muted-foreground text-right">
+                        {video.progress}%
+                      </p>
+                    </div>
+                  )}
                   {video.error_message && (
                     <p className="mt-2 text-sm text-red-500">{video.error_message}</p>
                   )}
