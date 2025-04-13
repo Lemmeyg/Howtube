@@ -9,6 +9,35 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      json_schemas: {
+        Row: {
+          id: string;
+          name: string;
+          description: string;
+          schema: Json;
+          created_at: string;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          description: string;
+          schema: Json;
+          created_at?: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          description?: string;
+          schema?: Json;
+          created_at?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+      };
       videos: {
         Row: {
           id: string
