@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import Link from "next/link"
+import { useState, useEffect } from "react"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import {
@@ -23,7 +23,6 @@ import {
   X,
 } from "lucide-react"
 import { motion } from "framer-motion"
-import { supabase } from "@/lib/api/supabase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -31,53 +30,71 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
+import { YouTubeUrlForm } from "@/components/video-processing/url-submission-form"
 
-// Mock data for documents
-const documents = [
-  {
-    id: 1,
-    title: "Introduction to Biology",
-    thumbnail: "/placeholder.svg?height=200&width=350",
-    status: "Published",
-    date: "2023-04-15",
-  },
-  {
-    id: 2,
-    title: "Advanced Mathematics: Calculus",
-    thumbnail: "/placeholder.svg?height=200&width=350",
-    status: "Draft",
-    date: "2023-05-22",
-  },
-  {
-    id: 3,
-    title: "Chemistry Lab Safety Procedures",
-    thumbnail: "/placeholder.svg?height=200&width=350",
-    status: "Published",
-    date: "2023-03-10",
-  },
-]
+interface Video {
+  id: string
+  youtube_url: string
+  status: string
+  transcription: string | null
+  created_at: string
+  error_message: string | null
+}
 
 export default function DashboardPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const { theme, setTheme } = useTheme()
-  const [url, setUrl] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
-  const router = useRouter()
+  const [videos, setVideos] = useState<Video[]>([])
+  const [loading, setLoading] = useState(true)
+  const supabase = createClientComponentClient()
+  const { theme, setTheme } = useTheme()
 
-  const handleSignOut = async () => {
+  useEffect(() => {
+    fetchVideos()
+    
+    // Subscribe to realtime updates
+    const channel = supabase
+      .channel('videos')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'videos'
+        },
+        () => {
+          fetchVideos()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
+
+  const fetchVideos = async () => {
     try {
-      const { error } = await supabase.auth.signOut()
-      if (error) throw error
-      toast.success("Successfully signed out!")
-      router.push("/sign-in")
+      const { data: videos, error } = await supabase
+        .from('videos')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        throw error
+      }
+
+      setVideos(videos || [])
     } catch (error) {
-      toast.error("Error signing out.")
-      console.error("Error:", error)
+      console.error('Error fetching videos:', error)
+      toast.error('Failed to load videos')
+    } finally {
+      setLoading(false)
     }
   }
 
-  const filteredDocuments = documents.filter((doc) =>
-    doc.title.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredVideos = videos.filter(video => 
+    video.youtube_url.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   return (
@@ -86,120 +103,93 @@ export default function DashboardPage() {
       <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-2">
-            <FileText className="h-6 w-6 text-youtube-red" />
+            <FileText className="h-6 w-6" />
             <span className="text-xl font-light">HowTube</span>
           </div>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-6">
+          <div className="flex items-center gap-4">
             <Button
-              variant="outline"
-              size="sm"
-              className="ml-4"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              variant="ghost"
+              size="icon"
+              onClick={() => setTheme(theme === "light" ? "dark" : "light")}
             >
-              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              {theme === "light" ? (
+                <Moon className="h-5 w-5" />
+              ) : (
+                <Sun className="h-5 w-5" />
+              )}
             </Button>
 
-            {/* Account Settings Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2">
-                  <User className="h-4 w-4" />
-                  <span>Account</span>
-                  <ChevronDown className="h-4 w-4" />
+                <Button variant="ghost" size="icon">
+                  <User className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem asChild>
-                  <Link href="/account/profile" className="flex items-center gap-2 cursor-pointer">
-                    <User className="h-4 w-4" />
-                    <span>Profile</span>
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/account/settings" className="flex items-center gap-2 cursor-pointer">
-                    <Settings className="h-4 w-4" />
-                    <span>Settings</span>
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleSignOut} className="flex items-center gap-2 cursor-pointer text-red-500">
-                  <X className="h-4 w-4" />
-                  <span>Sign Out</span>
-                </DropdownMenuItem>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem>Profile</DropdownMenuItem>
+                <DropdownMenuItem>Settings</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </nav>
-
-          {/* Mobile Menu Button */}
-          <div className="flex items-center gap-4 md:hidden">
-            <Button variant="outline" size="icon" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </Button>
-            <Button variant="outline" size="icon" onClick={() => setMobileMenuOpen(true)}>
-              <Menu className="h-5 w-5" />
-            </Button>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="container py-8">
-        {/* Search and Add New */}
+        {/* YouTube URL Submission Form */}
+        <div className="mb-8 flex justify-center">
+          <YouTubeUrlForm />
+        </div>
+
+        {/* Search */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4 flex-1 max-w-sm">
             <Input
               type="text"
-              placeholder="Search documents..."
+              placeholder="Search videos..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full"
             />
           </div>
-          <Button className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            New Document
-          </Button>
         </div>
 
-        {/* Tabs */}
-        <Tabs defaultValue="all" className="mb-8">
-          <TabsList>
-            <TabsTrigger value="all">All Documents</TabsTrigger>
-            <TabsTrigger value="published">Published</TabsTrigger>
-            <TabsTrigger value="drafts">Drafts</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="all" className="mt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredDocuments.map((doc) => (
-                <Card key={doc.id} className="overflow-hidden">
-                  <CardHeader className="p-0">
-                    <img
-                      src={doc.thumbnail}
-                      alt={doc.title}
-                      className="w-full h-48 object-cover"
-                    />
-                  </CardHeader>
-                  <CardContent className="p-4">
-                    <h3 className="font-semibold mb-2">{doc.title}</h3>
-                    <div className="flex items-center justify-between text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1">
+        {/* Videos Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {loading ? (
+            <p>Loading videos...</p>
+          ) : filteredVideos.length === 0 ? (
+            <p>No videos found. Try submitting a YouTube URL above.</p>
+          ) : (
+            filteredVideos.map((video) => (
+              <Card key={video.id} className="overflow-hidden">
+                <CardContent className="p-4">
+                  <h3 className="font-semibold mb-2 break-all">{video.youtube_url}</h3>
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-4 w-4" />
+                      {new Date(video.created_at).toLocaleDateString()}
+                    </span>
+                    <span className={`flex items-center gap-1 ${
+                      video.status === "completed" ? "text-green-500" : 
+                      video.status === "error" ? "text-red-500" : 
+                      "text-orange-500"
+                    }`}>
+                      {video.status === "completed" ? (
+                        <CheckCircle className="h-4 w-4" />
+                      ) : video.status === "error" ? (
+                        <X className="h-4 w-4" />
+                      ) : (
                         <Clock className="h-4 w-4" />
-                        {doc.date}
-                      </span>
-                      <span className={`flex items-center gap-1 ${
-                        doc.status === "Published" ? "text-green-500" : "text-orange-500"
-                      }`}>
-                        {doc.status === "Published" ? (
-                          <CheckCircle className="h-4 w-4" />
-                        ) : (
-                          <Edit2 className="h-4 w-4" />
-                        )}
-                        {doc.status}
-                      </span>
-                    </div>
-                  </CardContent>
+                      )}
+                      {video.status}
+                    </span>
+                  </div>
+                  {video.error_message && (
+                    <p className="mt-2 text-sm text-red-500">{video.error_message}</p>
+                  )}
+                </CardContent>
+                {video.status === "completed" && (
                   <CardFooter className="p-4 pt-0 flex justify-end gap-2">
                     <Button variant="outline" size="sm">
                       <Eye className="h-4 w-4 mr-1" />
@@ -210,34 +200,12 @@ export default function DashboardPage() {
                       Download
                     </Button>
                   </CardFooter>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-        </Tabs>
-      </main>
-
-      {/* Mobile Menu */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 bg-background md:hidden">
-          <div className="container flex h-16 items-center justify-between">
-            <div className="flex items-center gap-2">
-              <FileText className="h-6 w-6 text-youtube-red" />
-              <span className="text-xl font-light">HowTube</span>
-            </div>
-            <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(false)}>
-              <X className="h-5 w-5" />
-            </Button>
-          </div>
-          <nav className="container py-8">
-            <div className="flex flex-col gap-4">
-              <Button variant="ghost" className="w-full justify-start" onClick={handleSignOut}>
-                Sign Out
-              </Button>
-            </div>
-          </nav>
+                )}
+              </Card>
+            ))
+          )}
         </div>
-      )}
+      </main>
     </div>
   )
 } 
