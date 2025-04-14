@@ -1,38 +1,34 @@
 export type SubscriptionTier = 'free' | 'pro' | 'enterprise';
 
 export interface TierFeatures {
-  showMaterials: boolean;
-  showTimeEstimates: boolean;
-  showDifficulty: boolean;
-  showStepDurations: boolean;
-  showKeywords: boolean;
-  showStepMaterials: boolean;
+  transcription: boolean;
+  aiProcessing: boolean;
+  export: boolean;
+  collaboration: boolean;
+  customBranding: boolean;
 }
 
 export const SUBSCRIPTION_TIERS: Record<SubscriptionTier, TierFeatures> = {
   free: {
-    showMaterials: true,
-    showTimeEstimates: false,
-    showDifficulty: true,
-    showStepDurations: false,
-    showKeywords: false,
-    showStepMaterials: false,
+    transcription: true,
+    aiProcessing: false,
+    export: false,
+    collaboration: false,
+    customBranding: false,
   },
   pro: {
-    showMaterials: true,
-    showTimeEstimates: true,
-    showDifficulty: true,
-    showStepDurations: true,
-    showKeywords: true,
-    showStepMaterials: false,
+    transcription: true,
+    aiProcessing: true,
+    export: true,
+    collaboration: true,
+    customBranding: false,
   },
   enterprise: {
-    showMaterials: true,
-    showTimeEstimates: true,
-    showDifficulty: true,
-    showStepDurations: true,
-    showKeywords: true,
-    showStepMaterials: true,
+    transcription: true,
+    aiProcessing: true,
+    export: true,
+    collaboration: true,
+    customBranding: true,
   },
 };
 

@@ -14,21 +14,25 @@ import { contentToJson } from './transformers/content-to-json';
 import { validateVideoContent, type VideoContent } from './transformers/schema-validator';
 import { useToast } from '@/hooks/use-toast';
 import { useFeatureToggles } from '@/lib/stores/feature-toggles';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { ExportOptions } from './export-options';
 
 interface DocumentEditorProps {
   initialContent?: VideoContent | string;
   onSave?: (content: VideoContent) => void;
   readOnly?: boolean;
+  title?: string;
 }
 
 export function DocumentEditor({
   initialContent = '',
   onSave,
   readOnly = false,
+  title = 'Document',
 }: DocumentEditorProps) {
   const { toast } = useToast();
   const features = useFeatureToggles();
+  const [currentContent, setCurrentContent] = useState('');
   
   const { isSaving, saveDocument } = useDocument({
     onSave: async (content: string) => {
@@ -79,6 +83,7 @@ export function DocumentEditor({
     editable: !readOnly,
     onUpdate: ({ editor }) => {
       const content = editor.getHTML();
+      setCurrentContent(content);
       saveDocument(content);
     },
   });
@@ -88,6 +93,7 @@ export function DocumentEditor({
     if (editor && typeof initialContent !== 'string') {
       const content = jsonToEditorContent(initialContent, features);
       editor.commands.setContent(content);
+      setCurrentContent(content);
     }
   }, [editor, initialContent, features]);
 
@@ -101,7 +107,10 @@ export function DocumentEditor({
 
   return (
     <Card className="p-4">
-      {!readOnly && <Toolbar editor={editor} />}
+      <div className="flex justify-between items-center mb-4">
+        {!readOnly && <Toolbar editor={editor} />}
+        <ExportOptions editorContent={currentContent} title={title} />
+      </div>
       <EditorContent editor={editor} className="prose max-w-none" />
       {isSaving && (
         <div className="mt-2 text-sm text-muted-foreground flex items-center gap-2">

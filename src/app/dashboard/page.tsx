@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
+import Link from "next/link"
 import {
   Calendar,
   CheckCircle,
@@ -22,7 +23,6 @@ import {
   User,
   X,
 } from "lucide-react"
-import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -48,12 +48,54 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
+  const [userProfile, setUserProfile] = useState<any>(null)
   const supabase = createClientComponentClient()
   const { theme, setTheme } = useTheme()
+  const router = useRouter()
 
   useEffect(() => {
-    fetchVideos()
-    
+    const checkUserProfile = async () => {
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        
+        if (authError || !user) {
+          router.push('/sign-in')
+          return
+        }
+
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single()
+
+        if (profileError) {
+          console.error('Error fetching profile:', profileError)
+          toast.error('Error loading user profile')
+          return
+        }
+
+        if (!profile) {
+          console.error('No profile found')
+          toast.error('User profile not found')
+          router.push('/sign-in')
+          return
+        }
+
+        setUserProfile(profile)
+        fetchVideos()
+      } catch (error) {
+        console.error('Error in checkUserProfile:', error)
+        toast.error('An error occurred while loading your profile')
+      }
+    }
+
+    checkUserProfile()
+  }, [])
+
+  useEffect(() => {
+    if (!userProfile) return
+
     const channel = supabase
       .channel('videos')
       .on(
@@ -102,7 +144,7 @@ export default function DashboardPage() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [])
+  }, [userProfile])
 
   const fetchVideos = async () => {
     try {
@@ -117,7 +159,6 @@ export default function DashboardPage() {
         throw error;
       }
 
-      // Ensure status and progress are properly set
       const processedVideos = (videos || []).map(video => ({
         ...video,
         status: video.status || 'processing',
@@ -138,6 +179,10 @@ export default function DashboardPage() {
   const filteredVideos = videos.filter(video => 
     video.youtube_url.toLowerCase().includes(searchQuery.toLowerCase())
   )
+
+  if (!userProfile) {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -178,6 +223,18 @@ export default function DashboardPage() {
       </header>
 
       <main className="container py-8">
+        {/* Subscription Tier Info */}
+        <div className="mb-4 flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Current Plan: <span className="font-semibold">{userProfile.subscription_tier}</span>
+          </p>
+          <Link href="/dashboard/subscription">
+            <Button variant="outline" size="sm">
+              Manage Subscription
+            </Button>
+          </Link>
+        </div>
+
         {/* YouTube URL Submission Form */}
         <div className="mb-8 flex justify-center">
           <YouTubeUrlForm />
