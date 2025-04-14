@@ -1,33 +1,36 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createClient } from '@supabase/supabase-js';
 import { downloadAndTranscribe } from '@/lib/api/assembly-ai';
+import { processTranscription } from '@/lib/services/openai';
+import { OpenAIProcessingError } from '@/lib/services/openai';
 
 export async function POST(request: Request) {
   try {
-    // Get the request body
-    const body = await request.json();
-    const { youtubeUrl } = body;
+    const { youtubeUrl } = await request.json();
 
     if (!youtubeUrl) {
-      return NextResponse.json({ error: 'YouTube URL is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'YouTube URL is required' },
+        { status: 400 }
+      );
     }
 
-    // Initialize Supabase client with cookies
-    const cookieStore = cookies();
-    const supabase = createServerComponentClient({
-      cookies: () => cookieStore
-    });
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
-    // Get the current user's session
-    const { data: { session }, error: authError } = await supabase.auth.getSession();
-    
-    if (authError || !session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Get user from session
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !session) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
-    // Create initial video record
-    const { data: video, error: insertError } = await supabase
+    // Create video record
+    const { data: video, error: videoError } = await supabase
       .from('videos')
       .insert({
         user_id: session.user.id,
@@ -38,92 +41,107 @@ export async function POST(request: Request) {
       .select()
       .single();
 
-    if (insertError) {
-      console.error('Error creating video record:', insertError);
-      return NextResponse.json({ error: 'Failed to create video record' }, { status: 500 });
+    if (videoError) {
+      console.error('Error creating video record:', videoError);
+      return NextResponse.json(
+        { error: 'Failed to create video record' },
+        { status: 500 }
+      );
     }
 
-    // Start processing in the background
+    // Process video in background
     (async () => {
-      const backgroundSupabase = createServerComponentClient({
-        cookies: () => cookieStore
-      });
-
       try {
-        const result = await downloadAndTranscribe(
-          youtubeUrl,
-          async (progress, status, error) => {
-            console.log(`[${new Date().toISOString()}] Updating progress: ${progress}%, status: ${status}`);
-            try {
-              const { data, error: updateError } = await backgroundSupabase
-                .from('videos')
-                .update({
-                  progress,
-                  status,
-                  error_message: error,
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', video.id)
-                .select()
-                .single();
+        const progressCallback = async (progress: number) => {
+          await supabase
+            .from('videos')
+            .update({ progress })
+            .eq('id', video.id);
+        };
 
-              if (updateError) {
-                console.error('Error updating video progress:', updateError);
-              } else {
-                console.log(`[${new Date().toISOString()}] Successfully updated video:`, {
-                  id: video.id,
-                  progress: data.progress,
-                  status: data.status
-                });
-              }
-            } catch (updateError) {
-              console.error('Error in progress update:', updateError);
-            }
-          }
+        // Download and transcribe
+        const transcription = await downloadAndTranscribe(
+          youtubeUrl,
+          progressCallback
         );
 
-        // Update with final transcription result
-        console.log('Transcription completed, updating final status');
-        const { data: finalUpdate, error: finalError } = await backgroundSupabase
+        if (!transcription) {
+          throw new Error('Failed to transcribe video');
+        }
+
+        // Process with OpenAI
+        const systemPrompt = `Analyze the following video transcription and extract key information. 
+          Focus on main topics, key points, and actionable insights. 
+          Format the response as a structured JSON object.`;
+
+        const openaiResult = await processTranscription(
+          transcription,
+          systemPrompt,
+          {} // TODO: Add schema validation
+        );
+
+        if (openaiResult.error) {
+          console.error('OpenAI processing error:', openaiResult);
+          
+          // Update video with error details
+          await supabase
+            .from('videos')
+            .update({
+              status: 'error',
+              error: openaiResult.error,
+              error_code: openaiResult.code,
+              error_type: openaiResult.type,
+              progress: 100
+            })
+            .eq('id', video.id);
+          
+          return;
+        }
+
+        // Update video with results
+        await supabase
           .from('videos')
           .update({
             status: 'completed',
-            transcription: result.text,
-            progress: 100,
-            updated_at: new Date().toISOString()
+            transcription,
+            openai_result: openaiResult.content,
+            progress: 100
           })
-          .eq('id', video.id)
-          .select()
-          .single();
-
-        if (finalError) {
-          console.error('Error updating final status:', finalError);
-        } else {
-          console.log('Successfully updated final status:', finalUpdate);
-        }
+          .eq('id', video.id);
 
       } catch (error) {
         console.error('Error processing video:', error);
-        // Update video record with error
-        await backgroundSupabase
+        
+        const errorDetails = error instanceof OpenAIProcessingError
+          ? {
+              error: error.message,
+              error_code: error.code,
+              error_type: error.type
+            }
+          : {
+              error: error instanceof Error ? error.message : 'Unknown error occurred',
+              error_code: 'unknown',
+              error_type: 'processing'
+            };
+
+        await supabase
           .from('videos')
           .update({
             status: 'error',
-            error_message: error.message,
-            progress: 0,
-            updated_at: new Date().toISOString()
+            ...errorDetails,
+            progress: 100
           })
           .eq('id', video.id);
       }
     })();
 
-    // Return immediate response with video ID
-    return NextResponse.json({
-      message: 'Video processing started',
-      videoId: video.id
-    });
+    return NextResponse.json({ video });
+
   } catch (error) {
     console.error('Error in video processing route:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 } 
