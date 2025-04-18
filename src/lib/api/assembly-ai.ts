@@ -7,12 +7,32 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
+// Validate AssemblyAI API key
+if (!process.env.ASSEMBLY_AI_API_KEY) {
+  throw new Error('ASSEMBLY_AI_API_KEY is not set in environment variables');
+}
+
+// Create AssemblyAI client with proper configuration
 const assembly = axios.create({
   baseURL: 'https://api.assemblyai.com/v2',
   headers: {
     authorization: process.env.ASSEMBLY_AI_API_KEY,
+    'content-type': 'application/json',
   },
+  timeout: 30000, // 30 seconds
+  maxRetries: 3,
 });
+
+// Verify API key on startup
+(async () => {
+  try {
+    await assembly.get('/account');
+    console.log('AssemblyAI API key verified successfully');
+  } catch (error) {
+    console.error('Failed to verify AssemblyAI API key:', error);
+    throw new Error('Invalid AssemblyAI API key');
+  }
+})();
 
 const ASSEMBLY_AI_API_KEY = process.env.ASSEMBLY_AI_API_KEY;
 const ASSEMBLY_AI_API = 'https://api.assemblyai.com/v2';
@@ -139,12 +159,16 @@ async function downloadYouTubeAudio(url: string): Promise<string> {
 async function uploadAudioFile(audioPath: string): Promise<string> {
   try {
     const data = fs.readFileSync(audioPath);
-    const response = await axios.post(`${ASSEMBLY_AI_API}/upload`, data, {
+    const response = await assembly.post('/upload', data, {
       headers: {
-        'authorization': ASSEMBLY_AI_API_KEY,
         'content-type': 'application/octet-stream'
       }
     });
+    
+    if (!response.data.upload_url) {
+      throw new Error('No upload URL received from AssemblyAI');
+    }
+    
     return response.data.upload_url;
   } catch (error) {
     console.error('Error uploading audio:', error);
@@ -161,19 +185,15 @@ async function uploadAudioFile(audioPath: string): Promise<string> {
 
 export async function transcribeAudio(audioUrl: string) {
   try {
-    const response = await axios.post(
-      `${ASSEMBLY_AI_API}/transcript`,
-      {
-        audio_url: audioUrl,
-        speaker_labels: true
-      },
-      {
-        headers: {
-          'authorization': ASSEMBLY_AI_API_KEY,
-          'content-type': 'application/json'
-        }
-      }
-    );
+    const response = await assembly.post('/transcript', {
+      audio_url: audioUrl,
+      speaker_labels: true
+    });
+    
+    if (!response.data.id) {
+      throw new Error('No transcription ID received from AssemblyAI');
+    }
+    
     return response.data;
   } catch (error) {
     console.error('Error starting transcription:', error);
@@ -194,14 +214,15 @@ export async function getTranscriptionResult(transcriptId: string) {
 export async function pollTranscriptionResult(transcriptId: string) {
   try {
     while (true) {
-      const response = await axios.get(`${ASSEMBLY_AI_API}/transcript/${transcriptId}`, {
-        headers: { authorization: ASSEMBLY_AI_API_KEY }
-      });
+      const response = await assembly.get(`/transcript/${transcriptId}`);
+      const status = response.data.status;
 
-      if (response.data.status === 'completed') {
+      if (status === 'completed') {
         return response.data;
-      } else if (response.data.status === 'error') {
-        throw new Error('Transcription failed: ' + response.data.error);
+      } else if (status === 'error') {
+        throw new Error(`Transcription failed: ${response.data.error || 'Unknown error'}`);
+      } else if (!['queued', 'processing'].includes(status)) {
+        throw new Error(`Unexpected transcription status: ${status}`);
       }
 
       // Wait before polling again
@@ -237,13 +258,13 @@ export async function downloadAndTranscribe(
     console.log('Transcription started, ID:', transcription.id);
     
     // Polling for results
-    progressCallback(80, 'processing');
+    progressCallback(70, 'processing');
     console.log('Polling for transcription results...');
     const result = await pollTranscriptionResult(transcription.id);
     console.log('Transcription completed');
 
-    // Complete
-    progressCallback(100, 'completed');
+    // Complete AssemblyAI phase
+    progressCallback(80, 'completed_transcription');
     return result;
   } catch (error) {
     console.error('Error in processing:', error);

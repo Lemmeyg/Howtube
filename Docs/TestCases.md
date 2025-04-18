@@ -40,14 +40,14 @@ Before running these tests, ensure you have:
 - [ ] Expected: Success message and redirect to sign-in
 - [ ] Check email for verification link
 - [ ] Click verification link
-- [ ] Expected: Redirect to dashboard after verification
+- [X ] Expected: Redirect to dashboard after verification
 
 #### 1.2 User Login
 - [ ] Navigate to `/sign-in`
 - [ ] Enter test user credentials
 - [ ] Submit form
 - [ ] Expected: Success message and redirect to dashboard
-- [ ] Verify session persists after page refresh
+- [X ] Verify session persists after page refresh
 
 #### 1.3 Password Reset
 - [ ] Navigate to `/reset-password`
@@ -56,7 +56,7 @@ Before running these tests, ensure you have:
 - [ ] Expected: Success message and email with reset link
 - [ ] Click reset link
 - [ ] Enter new password
-- [ ] Expected: Success message and redirect to dashboard
+- [X ] Expected: Success message and redirect to dashboard
 
 #### 1.4 Session Management
 - [ ] Log in with test user
@@ -64,26 +64,14 @@ Before running these tests, ensure you have:
 - [ ] Expected: Access granted
 - [ ] Clear browser cookies
 - [ ] Refresh page
-- [ ] Expected: Redirect to sign-in page
+- X[ ] Expected: Redirect to sign-in page
 
 #### 1.5 Protected Routes
 - [ ] Try to access `/dashboard` while logged out
 - [ ] Expected: Redirect to sign-in page
 - [ ] Log in with test user
 - [ ] Try to access `/admin` (non-admin user)
-- [ ] Expected: Redirect to dashboard
-
-#### 1.6 Email Verification Flow
-- [ ] Register new user
-- [ ] Check if user can access restricted features before verification
-- [ ] Expected: Should be restricted
-- [ ] Verify email verification link format
-- [ ] Test expired verification link
-- [ ] Expected: Show appropriate error message
-- [ ] Test already verified user attempting verification
-- [ ] Expected: Show appropriate message
-- [ ] Test malformed verification tokens
-- [ ] Expected: Show security error message
+- [X ] Expected: Show security error message
 
 #### 1.7 User Profile Management
 - [ ] Navigate to profile settings
@@ -98,7 +86,7 @@ Before running these tests, ensure you have:
 - [ ] Update password with valid current password
 - [ ] Expected: Success message and stay logged in
 - [ ] Delete account
-- [ ] Expected: Confirmation modal and successful deletion
+- [X ] Expected: Confirmation modal and successful deletion
 
 #### 1.8 Subscription Tier Validation
 - [ ] Log in as free tier user

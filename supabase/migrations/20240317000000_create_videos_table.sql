@@ -12,6 +12,9 @@ create table if not exists public.videos (
     updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
+-- Enable real-time for the videos table
+alter publication supabase_realtime add table public.videos;
+
 -- Create RLS policies
 alter table public.videos enable row level security;
 

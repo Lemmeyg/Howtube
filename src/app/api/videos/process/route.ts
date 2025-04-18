@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
 import { downloadAndTranscribe } from '@/lib/api/assembly-ai';
 import { processTranscription } from '@/lib/services/openai';
 import { OpenAIProcessingError } from '@/lib/services/openai';
+import { getYouTubeVideoId } from '@/lib/utils';
 
 export async function POST(request: Request) {
   try {
@@ -15,10 +17,18 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    // Validate YouTube URL
+    const videoId = getYouTubeVideoId(youtubeUrl);
+    if (!videoId) {
+      return NextResponse.json(
+        { error: 'Invalid YouTube URL' },
+        { status: 400 }
+      );
+    }
+
+    // Properly await cookies() before using it
+    const cookieStore = cookies();
+    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
 
     // Get user from session
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -35,7 +45,7 @@ export async function POST(request: Request) {
       .insert({
         user_id: session.user.id,
         youtube_url: youtubeUrl,
-        status: 'processing',
+        status: 'initializing',
         progress: 0
       })
       .select()
@@ -52,62 +62,70 @@ export async function POST(request: Request) {
     // Process video in background
     (async () => {
       try {
-        const progressCallback = async (progress: number) => {
-          await supabase
+        const progressCallback = async (progress: number, status: string, error?: string) => {
+          // Add a small delay to ensure updates are caught by the frontend
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          const { error: updateError } = await supabase
             .from('videos')
-            .update({ progress })
+            .update({ 
+              progress,
+              status,
+              ...(error && { error_message: error })
+            })
             .eq('id', video.id);
+
+          if (updateError) {
+            console.error('Error updating video progress:', updateError);
+          }
         };
 
-        // Download and transcribe
-        const transcription = await downloadAndTranscribe(
+        // Step 1: Download and transcribe with AssemblyAI
+        await progressCallback(10, 'downloading');
+        const transcriptionResult = await downloadAndTranscribe(
           youtubeUrl,
           progressCallback
         );
 
-        if (!transcription) {
+        if (!transcriptionResult || !transcriptionResult.text) {
           throw new Error('Failed to transcribe video');
         }
 
-        // Process with OpenAI
+        // Update status for OpenAI processing
+        await progressCallback(80, 'processing');
+
+        // Step 2: Process with OpenAI
         const systemPrompt = `Analyze the following video transcription and extract key information. 
           Focus on main topics, key points, and actionable insights. 
           Format the response as a structured JSON object.`;
 
         const openaiResult = await processTranscription(
-          transcription,
+          transcriptionResult.text,
           systemPrompt,
           {} // TODO: Add schema validation
         );
 
         if (openaiResult.error) {
-          console.error('OpenAI processing error:', openaiResult);
-          
-          // Update video with error details
-          await supabase
-            .from('videos')
-            .update({
-              status: 'error',
-              error: openaiResult.error,
-              error_code: openaiResult.code,
-              error_type: openaiResult.type,
-              progress: 100
-            })
-            .eq('id', video.id);
-          
-          return;
+          throw new OpenAIProcessingError(
+            openaiResult.error,
+            openaiResult.code || 'unknown',
+            openaiResult.type || 'api'
+          );
         }
 
         // Update video with results
-        await supabase
+        await progressCallback(100, 'completed');
+        const { error: finalUpdateError } = await supabase
           .from('videos')
           .update({
-            status: 'completed',
-            transcription,
+            transcription: transcriptionResult,
             openai_result: openaiResult.content,
-            progress: 100
           })
           .eq('id', video.id);
+
+        if (finalUpdateError) {
+          console.error('Error updating final video state:', finalUpdateError);
+        }
 
       } catch (error) {
         console.error('Error processing video:', error);
@@ -129,7 +147,7 @@ export async function POST(request: Request) {
           .update({
             status: 'error',
             ...errorDetails,
-            progress: 100
+            progress: 0
           })
           .eq('id', video.id);
       }
