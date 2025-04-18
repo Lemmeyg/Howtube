@@ -9,7 +9,13 @@ import type {
 } from "@/components/ui/toast"
 
 const TOAST_LIMIT = 1
-const TOAST_REMOVE_DELAY = 1000000
+const TOAST_REMOVE_DELAY = 1000
+
+// Add immediate animation flag
+const defaultToastProps = {
+  duration: 1000,
+  className: "animate-in fade-in-0 zoom-in-95"
+}
 
 type ToasterToast = ToastProps & {
   id: string
@@ -158,6 +164,8 @@ function toast({ ...props }: Toast) {
       ...props,
       id,
       open: true,
+      duration: 1500,
+      className: "animate-in fade-in-0 duration-200",
       onOpenChange: (open) => {
         if (!open) dismiss()
       },

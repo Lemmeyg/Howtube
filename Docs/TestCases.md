@@ -73,6 +73,46 @@ Before running these tests, ensure you have:
 - [ ] Try to access `/admin` (non-admin user)
 - [ ] Expected: Redirect to dashboard
 
+#### 1.6 Email Verification Flow
+- [ ] Register new user
+- [ ] Check if user can access restricted features before verification
+- [ ] Expected: Should be restricted
+- [ ] Verify email verification link format
+- [ ] Test expired verification link
+- [ ] Expected: Show appropriate error message
+- [ ] Test already verified user attempting verification
+- [ ] Expected: Show appropriate message
+- [ ] Test malformed verification tokens
+- [ ] Expected: Show security error message
+
+#### 1.7 User Profile Management
+- [ ] Navigate to profile settings
+- [ ] Update user display name
+- [ ] Expected: Success message and immediate UI update
+- [ ] Update user email
+- [ ] Expected: Require email verification for new address
+- [ ] Upload profile picture
+- [ ] Expected: Image preview and successful update
+- [ ] Update password with invalid current password
+- [ ] Expected: Error message
+- [ ] Update password with valid current password
+- [ ] Expected: Success message and stay logged in
+- [ ] Delete account
+- [ ] Expected: Confirmation modal and successful deletion
+
+#### 1.8 Subscription Tier Validation
+- [ ] Log in as free tier user
+- [ ] Verify available features match free tier
+- [ ] Upgrade to pro tier
+- [ ] Expected: Immediate access to pro features
+- [ ] Verify feature availability persists after refresh
+- [ ] Downgrade to free tier
+- [ ] Expected: Immediate restriction of pro features
+- [ ] Test grace period for expired subscriptions
+- [ ] Expected: Warning message and feature access for grace period
+- [ ] Test after grace period
+- [ ] Expected: Revert to free tier restrictions
+
 ### 2. Video Processing Pipeline
 
 #### 2.1 YouTube URL Submission
@@ -132,6 +172,42 @@ Before running these tests, ensure you have:
 - [ ] Expected: Video status shows as "completed"
 - [ ] Expected: Video has a progress of 100%
 - [ ] Expected: Video can be viewed/edited
+
+#### 2.9 AssemblyAI Integration Edge Cases
+- [ ] Test video with multiple languages
+- [ ] Expected: Primary language detection and appropriate handling
+- [ ] Test video with background noise
+- [ ] Expected: Transcription with noise reduction applied
+- [ ] Test video with music sections
+- [ ] Expected: Proper handling of non-speech audio
+- [ ] Test connection failure during transcription
+- [ ] Expected: Retry mechanism activation
+- [ ] Test API key expiration during process
+- [ ] Expected: Appropriate error message and process halt
+
+#### 2.10 Concurrent Processing Limits
+- [ ] Submit multiple videos simultaneously as free tier user
+- [ ] Expected: Queue system activation
+- [ ] Submit multiple videos as pro tier user
+- [ ] Expected: Higher concurrent processing limit
+- [ ] Test queue priority system
+- [ ] Expected: Pro tier videos prioritized
+- [ ] Test queue timeout handling
+- [ ] Expected: Appropriate timeout messages
+- [ ] Test queue position updates
+- [ ] Expected: Real-time queue position display
+
+#### 2.11 Video Metadata Validation
+- [ ] Process video with no title
+- [ ] Expected: Use video ID as fallback
+- [ ] Process video with special characters in title
+- [ ] Expected: Proper escaping and handling
+- [ ] Process video with extremely long title
+- [ ] Expected: Proper truncation
+- [ ] Process video with no description
+- [ ] Expected: Handle empty description gracefully
+- [ ] Process video with embedded timestamps
+- [ ] Expected: Proper parsing of timestamp information
 
 ### 3. Database Setup Verification
 
@@ -237,6 +313,304 @@ Before running these tests, ensure you have:
 - [ ] Change test user's subscription tier
 - [ ] Expected: Feature availability should update immediately
 - [ ] Verify UI reflects new feature access
+
+### 9. OpenAI Analysis
+
+#### 9.1 System Prompt Management
+- [ ] Log in as admin
+- [ ] Navigate to prompt management interface
+- [ ] Create new system prompt
+- [ ] Expected: Prompt saved and available for use
+- [ ] Edit existing prompt
+- [ ] Expected: Changes reflected in new processing
+- [ ] Test prompt versioning
+- [ ] Expected: Ability to rollback to previous versions
+- [ ] Test prompt validation
+- [ ] Expected: Error for invalid prompt structure
+
+#### 9.2 JSON Schema Validation
+- [ ] Process video with complete schema
+- [ ] Expected: All fields properly populated
+- [ ] Process video with missing optional fields
+- [ ] Expected: Default values applied
+- [ ] Process video with invalid field types
+- [ ] Expected: Type coercion or error message
+- [ ] Test nested JSON structures
+- [ ] Expected: Proper parsing of all levels
+- [ ] Test array field handling
+- [ ] Expected: Proper array structure maintained
+
+#### 9.3 SEO Metadata Processing
+- [ ] Process video with rich metadata
+- [ ] Expected: Keywords and tags extracted
+- [ ] Process video with minimal metadata
+- [ ] Expected: AI-generated alternative metadata
+- [ ] Test metadata relevance scoring
+- [ ] Expected: Properly ranked keywords
+- [ ] Test metadata language variants
+- [ ] Expected: Language-specific SEO data
+- [ ] Test metadata character limits
+- [ ] Expected: Proper truncation for different platforms
+
+#### 9.4 Admin Prompt Configuration
+- [ ] Test prompt template creation
+- [ ] Expected: Template saved and available
+- [ ] Test variable substitution in templates
+- [ ] Expected: Variables properly replaced
+- [ ] Test template access control
+- [ ] Expected: Only admins can modify
+- [ ] Test template categories
+- [ ] Expected: Proper organization and filtering
+- [ ] Test template performance metrics
+- [ ] Expected: Usage and success rate data
+
+#### 9.5 OpenAI Integration Edge Cases
+- [ ] Test handling of API timeouts
+- [ ] Expected: Retry mechanism activation
+- [ ] Test rate limit handling
+- [ ] Expected: Queue system activation
+- [ ] Test content filter triggers
+- [ ] Expected: Appropriate warning messages
+- [ ] Test token limit optimization
+- [ ] Expected: Content splitting if needed
+- [ ] Test error recovery
+- [ ] Expected: Graceful fallback options
+
+### 10. Document Editor
+
+#### 10.1 TipTap Editor Core Functionality
+- [ ] Create new document
+- [ ] Expected: Empty editor with default structure
+- [ ] Test basic text formatting (bold, italic, underline)
+- [ ] Expected: Proper formatting applied
+- [ ] Test heading levels
+- [ ] Expected: Proper hierarchy maintained
+- [ ] Test lists (ordered and unordered)
+- [ ] Expected: Proper list formatting
+- [ ] Test undo/redo functionality
+- [ ] Expected: State properly tracked
+
+#### 10.2 Field Visibility Controls
+- [ ] Toggle individual fields
+- [ ] Expected: Immediate UI update
+- [ ] Test field dependencies
+- [ ] Expected: Related fields toggle together
+- [ ] Test subscription-restricted fields
+- [ ] Expected: Proper access control
+- [ ] Save field visibility state
+- [ ] Expected: State persists after refresh
+- [ ] Test bulk field toggle
+- [ ] Expected: Multiple fields update correctly
+
+#### 10.3 Document State Management
+- [ ] Test auto-save functionality
+- [ ] Expected: Regular state persistence
+- [ ] Test conflict resolution
+- [ ] Expected: Proper handling of concurrent edits
+- [ ] Test offline changes
+- [ ] Expected: Local storage backup
+- [ ] Test version history
+- [ ] Expected: Ability to view and restore versions
+- [ ] Test document sharing state
+- [ ] Expected: Proper permission handling
+
+#### 10.4 Collaboration Features
+- [ ] Test real-time collaboration
+- [ ] Expected: Multiple users can edit
+- [ ] Test cursor presence
+- [ ] Expected: See other users' cursors
+- [ ] Test change attribution
+- [ ] Expected: Track who made changes
+- [ ] Test comment functionality
+- [ ] Expected: Add and resolve comments
+- [ ] Test permission levels
+- [ ] Expected: Proper access control
+
+#### 10.5 Export Functionality
+- [ ] Test PDF export
+- [ ] Expected: Proper formatting maintained
+- [ ] Test DOCX export
+- [ ] Expected: Styles properly converted
+- [ ] Test Markdown export
+- [ ] Expected: Clean markdown output
+- [ ] Test custom export templates
+- [ ] Expected: Template properly applied
+- [ ] Test batch export
+- [ ] Expected: Multiple documents processed
+
+#### 10.6 Performance Testing
+- [ ] Test large document handling
+- [ ] Expected: No performance degradation
+- [ ] Test image handling
+- [ ] Expected: Proper optimization
+- [ ] Test concurrent operations
+- [ ] Expected: No conflicts or locks
+- [ ] Test memory usage
+- [ ] Expected: Efficient resource usage
+- [ ] Test load times
+- [ ] Expected: Quick initial render
+
+### 11. Subscription System
+
+#### 11.1 Subscription Plan Management
+- [ ] Test plan creation (admin)
+- [ ] Expected: New plan available in system
+- [ ] Test plan modification
+- [ ] Expected: Changes reflect for new subscribers
+- [ ] Test plan deprecation
+- [ ] Expected: Existing users grandfathered
+- [ ] Test feature mapping
+- [ ] Expected: Correct features per plan
+- [ ] Test custom plan creation
+- [ ] Expected: Enterprise plan flexibility
+
+#### 11.2 Payment Processing
+- [ ] Test initial subscription
+- [ ] Expected: Successful Stripe charge
+- [ ] Test subscription renewal
+- [ ] Expected: Automatic payment processing
+- [ ] Test payment failure
+- [ ] Expected: Retry mechanism and notifications
+- [ ] Test refund process
+- [ ] Expected: Proper refund handling
+- [ ] Test proration
+- [ ] Expected: Correct amount calculation
+
+#### 11.3 Subscription Lifecycle
+- [ ] Test upgrade flow
+- [ ] Expected: Immediate access to new features
+- [ ] Test downgrade flow
+- [ ] Expected: Proper feature restriction
+- [ ] Test cancellation
+- [ ] Expected: Access until period end
+- [ ] Test reactivation
+- [ ] Expected: Proper feature restoration
+- [ ] Test subscription pause
+- [ ] Expected: Temporary access suspension
+
+#### 11.4 Usage Tracking
+- [ ] Test usage metrics collection
+- [ ] Expected: Accurate tracking
+- [ ] Test usage limits
+- [ ] Expected: Proper limit enforcement
+- [ ] Test usage notifications
+- [ ] Expected: Timely alerts
+- [ ] Test usage reports
+- [ ] Expected: Accurate reporting
+- [ ] Test usage analytics
+- [ ] Expected: Proper data visualization
+
+#### 11.5 Billing Management
+- [ ] Test invoice generation
+- [ ] Expected: Accurate billing details
+- [ ] Test payment method update
+- [ ] Expected: Successful card update
+- [ ] Test billing cycle changes
+- [ ] Expected: Proper proration
+- [ ] Test tax calculation
+- [ ] Expected: Correct tax application
+- [ ] Test currency handling
+- [ ] Expected: Proper currency conversion
+
+#### 11.6 Enterprise Features
+- [ ] Test custom pricing
+- [ ] Expected: Special rates applied
+- [ ] Test bulk licensing
+- [ ] Expected: Multiple seat management
+- [ ] Test custom features
+- [ ] Expected: Special feature access
+- [ ] Test billing consolidation
+- [ ] Expected: Single invoice for multiple seats
+- [ ] Test usage reporting
+- [ ] Expected: Detailed enterprise reports
+
+### 12. Core Infrastructure
+
+#### 12.1 API Performance
+- [ ] Test endpoint response times
+- [ ] Expected: Within acceptable thresholds
+- [ ] Test concurrent requests
+- [ ] Expected: Proper request handling
+- [ ] Test rate limiting
+- [ ] Expected: Limits properly enforced
+- [ ] Test API versioning
+- [ ] Expected: Backward compatibility
+- [ ] Test API documentation
+- [ ] Expected: Up-to-date and accurate
+
+#### 12.2 Error Handling
+- [ ] Test global error handler
+- [ ] Expected: Proper error formatting
+- [ ] Test API error responses
+- [ ] Expected: Consistent error structure
+- [ ] Test client-side error handling
+- [ ] Expected: User-friendly messages
+- [ ] Test error logging
+- [ ] Expected: Proper error tracking
+- [ ] Test error recovery
+- [ ] Expected: System stability maintained
+
+#### 12.3 Logging System
+- [ ] Test log generation
+- [ ] Expected: Proper log formatting
+- [ ] Test log levels
+- [ ] Expected: Correct level assignment
+- [ ] Test log rotation
+- [ ] Expected: Proper file management
+- [ ] Test log search
+- [ ] Expected: Quick log retrieval
+- [ ] Test log security
+- [ ] Expected: Sensitive data protected
+
+### 13. Security Features
+
+#### 13.1 Authentication Security
+- [ ] Test password complexity
+- [ ] Expected: Strong password enforcement
+- [ ] Test brute force protection
+- [ ] Expected: Account lockout after failures
+- [ ] Test session timeout
+- [ ] Expected: Proper session expiration
+- [ ] Test concurrent sessions
+- [ ] Expected: Session management
+- [ ] Test OAuth security
+- [ ] Expected: Proper token handling
+
+#### 13.2 Data Protection
+- [ ] Test data encryption at rest
+- [ ] Expected: Proper encryption
+- [ ] Test data encryption in transit
+- [ ] Expected: HTTPS enforcement
+- [ ] Test data backup
+- [ ] Expected: Regular backups
+- [ ] Test data recovery
+- [ ] Expected: Successful restoration
+- [ ] Test data deletion
+- [ ] Expected: Proper data removal
+
+#### 13.3 Access Control
+- [ ] Test role-based access
+- [ ] Expected: Proper permission enforcement
+- [ ] Test resource isolation
+- [ ] Expected: Cross-user protection
+- [ ] Test API authentication
+- [ ] Expected: Valid token required
+- [ ] Test permission inheritance
+- [ ] Expected: Proper role hierarchy
+- [ ] Test access audit
+- [ ] Expected: Access logs maintained
+
+#### 13.4 Security Monitoring
+- [ ] Test security alerts
+- [ ] Expected: Timely notifications
+- [ ] Test intrusion detection
+- [ ] Expected: Suspicious activity flagged
+- [ ] Test security patches
+- [ ] Expected: Quick vulnerability fixes
+- [ ] Test security reporting
+- [ ] Expected: Comprehensive reports
+- [ ] Test incident response
+- [ ] Expected: Quick threat mitigation
 
 ## Troubleshooting
 

@@ -2,96 +2,85 @@
 
 import { createContext, useContext, useEffect, useState } from "react"
 import { User } from "@supabase/supabase-js"
-import { supabase } from "@/lib/api/supabase"
+import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 
-type AuthContextType = {
+interface AuthContextType {
   user: User | null
-  loading: boolean
+  isLoading: boolean
   signOut: () => Promise<void>
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  isLoading: true,
+  signOut: async () => {},
+})
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
+  const supabase = createClient()
 
   const clearSessionData = () => {
-    // Clear localStorage
-    window.localStorage.removeItem('supabase.auth.token')
-    window.localStorage.removeItem('sb-access-token')
-    window.localStorage.removeItem('sb-refresh-token')
-    window.localStorage.removeItem('supabase.auth.data')
+    // Clear all Supabase-related localStorage items
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('supabase.') || key.startsWith('sb-')) {
+        localStorage.removeItem(key)
+      }
+    })
 
-    // Clear cookies
+    // Clear all cookies
     document.cookie.split(";").forEach((c) => {
-      document.cookie = c
-        .replace(/^ +/, "")
-        .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/")
+      const key = c.split("=")[0].trim()
+      document.cookie = `${key}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`
     })
   }
 
   useEffect(() => {
-    let mounted = true
-
-    // Get initial session
-    const initializeAuth = async () => {
+    // Check active session
+    const checkUser = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (mounted) {
-          setUser(session?.user ?? null)
-          setLoading(false)
+        const { data: { user }, error } = await supabase.auth.getUser()
+        if (error) {
+          throw error
         }
+        setUser(user)
       } catch (error) {
-        console.error("Error getting initial session:", error)
-        if (mounted) {
-          setUser(null)
-          setLoading(false)
-        }
+        console.error('Error checking auth status:', error)
+        setUser(null)
+        clearSessionData()
+      } finally {
+        setIsLoading(false)
       }
     }
 
-    initializeAuth()
+    checkUser()
 
-    // Listen for auth changes
+    // Listen for auth state changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state changed:", event, "Session:", !!session)
-      
-      if (!mounted) return
-
       if (event === 'SIGNED_OUT') {
-        setUser(null)
         clearSessionData()
-        router.push('/sign-in')
-      } else if (event === 'SIGNED_IN') {
-        if (session?.user) {
-          setUser(session.user)
-          router.push('/dashboard')
-        }
-      } else if (event === 'TOKEN_REFRESHED') {
-        if (session?.user) {
-          setUser(session.user)
-        }
+        setUser(null)
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        setUser(session?.user ?? null)
       }
-      
-      setLoading(false)
+      setIsLoading(false)
     })
 
     return () => {
-      mounted = false
       subscription.unsubscribe()
     }
-  }, [router])
+  }, [supabase])
 
   const signOut = async () => {
     try {
       await supabase.auth.signOut()
-      setUser(null)
       clearSessionData()
+      setUser(null)
       router.push('/sign-in')
     } catch (error) {
       console.error("Error signing out:", error)
@@ -99,15 +88,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, signOut }}>
-      {!loading && children}
+    <AuthContext.Provider value={{ user, isLoading, signOut }}>
+      {!isLoading && children}
     </AuthContext.Provider>
   )
 }
 
-export function useAuth() {
+export const useAuth = () => {
   const context = useContext(AuthContext)
-  if (context === undefined) {
+  if (!context) {
     throw new Error("useAuth must be used within an AuthProvider")
   }
   return context

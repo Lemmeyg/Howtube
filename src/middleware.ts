@@ -7,152 +7,110 @@ import { SubscriptionTier } from '@/config/subscription-tiers'
 
 const featureConfigService = new FeatureConfigService()
 
-export async function middleware(request: NextRequest) {
-  console.log("[Middleware] Request path:", request.nextUrl.pathname)
-  
-  // Create a response object that we can modify
+const PUBLIC_PATHS = ['/sign-in', '/sign-up', '/reset-password']
+const ADMIN_PATHS = ['/admin']
+
+export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
-
-  // Define public paths that don't require authentication
-  const publicPaths = ['/sign-in', '/sign-up', '/reset-password', '/update-password', '/callback']
-  const isPublicPath = publicPaths.includes(request.nextUrl.pathname)
-
-  // Allow access to public paths without authentication
-  if (isPublicPath) {
-    console.log("[Middleware] Public path accessed:", request.nextUrl.pathname)
-    return res
-  }
   
-  // Create the Supabase client using middleware client
-  const supabase = createMiddlewareClient<Database>({ req: request, res })
-
   try {
-    // Try to refresh the session
-    console.log("[Middleware] Attempting to refresh session")
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-    
-    if (sessionError) {
-      console.error("[Middleware] Session error:", sessionError.message)
-      throw sessionError
-    }
-
-    if (!session) {
-      console.log("[Middleware] No session found")
-      throw new Error("No session")
-    }
-
-    // Validate the session by checking the user
-    const { data: { user }, error: userError } = await supabase.auth.getUser(session.access_token)
-    
-    if (userError || !user) {
-      console.error("[Middleware] User validation error:", userError?.message)
-      throw new Error("Invalid session")
-    }
-
-    console.log("[Middleware] Session validated for user:", user.email)
-
-    // Handle root path specifically
-    if (request.nextUrl.pathname === '/') {
-      console.log("[Middleware] Redirecting root path to dashboard")
-      return NextResponse.redirect(new URL('/dashboard', request.url))
-    }
-
-    // Get user's profile
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('subscription_tier, is_admin')
-      .eq('id', user.id)
-      .single()
-
-    // If no profile exists, create one with default values
-    if (!profile) {
-      console.log("[Middleware] Creating new profile for user:", user.email)
-      const { error: insertError } = await supabase
-        .from('profiles')
-        .insert({
-          id: user.id,
-          email: user.email,
-          full_name: user.user_metadata?.full_name || '',
-          subscription_tier: 'free',
-          is_admin: false
-        })
-
-      if (insertError) {
-        console.error("[Middleware] Error creating profile:", insertError)
-        return NextResponse.json(
-          { error: 'Failed to create user profile' },
-          { status: 500 }
-        )
-      }
-
-      // Fetch the newly created profile
-      const { data: newProfile, error: newProfileError } = await supabase
-        .from('profiles')
-        .select('subscription_tier, is_admin')
-        .eq('id', user.id)
-        .single()
-
-      if (newProfileError || !newProfile) {
-        console.error("[Middleware] Error fetching new profile:", newProfileError)
-        return NextResponse.json(
-          { error: 'Failed to fetch user profile' },
-          { status: 500 }
-        )
-      }
-    }
-
-    // Check feature availability based on the API route
-    const feature = getFeatureFromPath(request.nextUrl.pathname)
-    if (feature) {
-      const isEnabled = await featureConfigService.isFeatureEnabled(
-        profile?.subscription_tier as SubscriptionTier || 'free',
-        feature
-      )
-
-      if (!isEnabled) {
-        console.error("[Middleware] Feature not available in your subscription tier")
-        return NextResponse.json(
-          { error: 'Feature not available in your subscription tier' },
-          { status: 403 }
-        )
-      }
-    }
-    
-    console.log("[Middleware] Path info:", {
-      path: request.nextUrl.pathname,
-      isPublic: isPublicPath,
-      hasSession: !!session
+    const supabase = createMiddlewareClient<Database>({ 
+      req, 
+      res,
+      options: {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          flowType: 'pkce',
+        },
+        cookies: {
+          name: 'sb-auth-token',
+          lifetime: 0,
+          domain: '',
+          sameSite: 'lax',
+          secure: process.env.NODE_ENV === 'production',
+          path: '/',
+        },
+        global: {
+          headers: {
+            'Cache-Control': 'no-store',
+            'Pragma': 'no-cache',
+          },
+        },
+      },
     })
 
-    // Set session cookie in the response
-    if (session) {
-      res.cookies.set('supabase-auth-token', session.user.access_token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/'
+    const pathname = req.nextUrl.pathname
+
+    // Skip auth check for public paths
+    if (PUBLIC_PATHS.some(path => pathname.startsWith(path))) {
+      return res
+    }
+
+    // Get user data from session only (not localStorage)
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    if (!session || sessionError) {
+      // Clear all auth-related cookies
+      const cookies = req.cookies.getAll()
+      cookies.forEach(cookie => {
+        if (cookie.name.startsWith('sb-') || cookie.name.includes('supabase')) {
+          res.cookies.delete(cookie.name)
+        }
+      })
+
+      // Only redirect to sign-in if not already there
+      if (!pathname.startsWith('/sign-in')) {
+    const redirectUrl = new URL('/sign-in', req.url)
+        redirectUrl.searchParams.set('redirectedFrom', pathname)
+    return NextResponse.redirect(redirectUrl)
+  }
+      return res
+    }
+
+    // Handle admin routes
+    if (ADMIN_PATHS.some(path => pathname.startsWith(path))) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('id', session.user.id)
+        .single()
+
+      if (!profile?.is_admin) {
+    return NextResponse.redirect(new URL('/dashboard', req.url))
+  }
+
+      // Set admin status in a session cookie
+      res.cookies.set('is_admin', 'true', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+        path: '/',
+        maxAge: 0, // Session cookie
       })
     }
 
-    console.log("[Middleware] Request proceeding with session:", !!session)
-
-    // Admin route protection
-    if (request.nextUrl.pathname.startsWith('/admin') && !profile?.is_admin) {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
-    }
-
-    return res
-
-  } catch (error) {
-    console.error("[Middleware] Auth error:", error)
-    // Clear any invalid session data from the response
-    res.cookies.delete('sb-access-token')
-    res.cookies.delete('sb-refresh-token')
+    // Set Cache-Control headers
+    res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+    res.headers.set('Pragma', 'no-cache')
+    res.headers.set('Expires', '0')
+    res.headers.set('Surrogate-Control', 'no-store')
     
-    // Redirect to sign-in for non-public paths
-    const redirectUrl = new URL('/sign-in', request.url)
-    redirectUrl.searchParams.set('redirectedFrom', request.nextUrl.pathname)
-    return NextResponse.redirect(redirectUrl)
+    return res
+  } catch (error) {
+    console.error('Middleware error:', error)
+    // Clear all auth-related cookies
+    const cookies = req.cookies.getAll()
+    cookies.forEach(cookie => {
+      if (cookie.name.startsWith('sb-') || cookie.name.includes('supabase')) {
+        res.cookies.delete(cookie.name)
+      }
+    })
+    
+    // Only redirect to sign-in if not already there
+    if (!req.nextUrl.pathname.startsWith('/sign-in')) {
+      return NextResponse.redirect(new URL('/sign-in', req.url))
+    }
+  return res
   }
 }
 
@@ -167,6 +125,14 @@ function getFeatureFromPath(path: string): keyof TierFeatures | null {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|public).*)',
+    /*
+     * Match all request paths except:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public folder
+     * - public files
+     */
+    '/((?!_next/static|_next/image|favicon.ico|public/).*)',
   ],
 } 

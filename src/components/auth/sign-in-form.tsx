@@ -1,120 +1,117 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/api/supabase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { toast } from "sonner"
+import { useToast } from "@/hooks/use-toast"
+import { AuthError } from "@supabase/supabase-js"
 
 export function SignInForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
+  const [isRedirecting, setIsRedirecting] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { toast } = useToast()
 
   const handleRedirect = useCallback(async (session: any) => {
+    if (isRedirecting || !session) return
+    
     try {
-      // Get the redirectedFrom parameter and decode it
+      setIsRedirecting(true)
       let redirectTo = searchParams?.get('redirectedFrom')
       redirectTo = redirectTo ? decodeURIComponent(redirectTo) : '/dashboard'
       
-      console.log("Attempting redirect to:", redirectTo, "with session:", !!session)
-      
-      // Ensure session is set before redirecting
-      if (session) {
-        await supabase.auth.setSession(session)
-        
-        // Force a small delay to ensure session is properly set
-        await new Promise(resolve => setTimeout(resolve, 100))
-        
-        // Use replace instead of push to prevent back navigation
-        router.replace(redirectTo)
-        router.refresh()
-      }
+      router.replace(redirectTo)
     } catch (error) {
       console.error("Redirect error:", error)
-      // Fallback to dashboard if there's an error with the redirect
       router.replace('/dashboard')
     }
-  }, [router, searchParams])
+  }, [router, searchParams, isRedirecting])
+
+  const getErrorMessage = (error: AuthError) => {
+    // Check for specific error messages from Supabase
+    if (error.message.includes('Invalid login credentials')) {
+      return 'Invalid email or password. Please check your credentials and try again.'
+    }
+    if (error.message.includes('Email not confirmed')) {
+      return 'Please verify your email address before signing in. Check your inbox for the verification link.'
+    }
+    if (error.message.includes('User not found')) {
+      return 'No account found with this email. Please check your email or sign up for a new account.'
+    }
+    return error.message || 'An error occurred while signing in. Please try again.'
+  }
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (loading || isRedirecting) return
     setLoading(true)
 
     try {
-      console.log("Attempting sign in with:", { email })
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
       if (error) {
-        console.error("Sign in error:", error.message)
         throw error
       }
 
       if (data?.session) {
-        console.log("Sign in successful:", {
-          user: data.session.user.email,
-          sessionId: data.session.access_token ? "Present" : "Missing"
+        toast({
+          title: "Success",
+          description: "Successfully signed in!",
         })
-        
-        toast.success("Successfully signed in!")
         await handleRedirect(data.session)
       }
     } catch (error: any) {
-      console.error("Sign in process error:", error.message)
-      toast.error(error.message || "Error signing in")
+      const errorMessage = getErrorMessage(error)
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      })
+
+      // If it's an unverified email, show additional action button
+      if (error.message.includes('Email not confirmed')) {
+        toast({
+          title: "Email not verified",
+          description: "Please verify your email address before signing in.",
+          variant: "destructive",
+          action: {
+            label: "Resend verification",
+            onClick: async () => {
+              try {
+                const { error: resendError } = await supabase.auth.resend({
+                  type: 'signup',
+                  email,
+                })
+                if (resendError) throw resendError
+                toast({
+                  title: "Success",
+                  description: "Verification email resent. Please check your inbox.",
+                })
+              } catch (resendError) {
+                toast({
+                  title: "Error",
+                  description: "Failed to resend verification email. Please try again.",
+                  variant: "destructive",
+                })
+              }
+            },
+          },
+        })
+      }
     } finally {
       setLoading(false)
     }
   }
-
-  // Check for existing session on mount
-  useEffect(() => {
-    let mounted = true
-
-    const checkSession = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession()
-        
-        if (error) {
-          console.error("Session check error:", error)
-          return
-        }
-
-        if (session && mounted) {
-          console.log("Existing session found:", {
-            user: session.user.email,
-            sessionId: session.access_token ? "Present" : "Missing"
-          })
-          await handleRedirect(session)
-        }
-      } catch (error) {
-        console.error("Session check error:", error)
-      }
-    }
-
-    checkSession()
-
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state changed:", event, "Session:", !!session)
-      if (session && mounted) {
-        await handleRedirect(session)
-      }
-    })
-
-    return () => {
-      mounted = false
-      subscription.unsubscribe()
-    }
-  }, [handleRedirect])
 
   return (
     <Card className="w-full max-w-md">
@@ -159,6 +156,14 @@ export function SignInForm() {
             onClick={() => router.push("/sign-up")}
           >
             Create an account
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={() => router.push("/reset-password")}
+          >
+            Reset password
           </Button>
         </CardFooter>
       </form>

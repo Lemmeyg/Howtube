@@ -14,6 +14,7 @@ export function SignUpForm() {
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [loading, setLoading] = useState(false)
+  const [success, setSuccess] = useState(false)
   const router = useRouter()
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -37,14 +38,49 @@ export function SignUpForm() {
 
       if (error) throw error
 
-      toast.success("Check your email for the confirmation link!")
-      router.push("/sign-in")
-    } catch (error) {
-      toast.error("Error signing up. Please try again.")
+      setSuccess(true)
+      toast.success("Account created successfully! Please check your email to verify your account.", {
+        duration: 5000,
+      })
+      
+      // Delay redirect to ensure toast is seen
+      setTimeout(() => {
+        router.push("/sign-in")
+      }, 3000)
+    } catch (error: any) {
       console.error("Error signing up:", error)
+      toast.error(error.message || "Error signing up. Please try again.")
     } finally {
       setLoading(false)
     }
+  }
+
+  if (success) {
+    return (
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>Check Your Email</CardTitle>
+          <CardDescription>
+            We've sent a verification link to your email address. Please click the link to verify your account.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Once verified, you'll be able to sign in to your account.
+          </p>
+        </CardContent>
+        <CardFooter>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={() => router.push("/sign-in")}
+          >
+            Go to Sign In
+          </Button>
+        </CardFooter>
+      </Card>
+    )
   }
 
   return (

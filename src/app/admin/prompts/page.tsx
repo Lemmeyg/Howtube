@@ -1,200 +1,197 @@
 "use client"
 
-import { useState } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { useToast } from '@/components/ui/use-toast'
+import { useState, useEffect } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Button } from "@/components/ui/button"
+import { useToast } from "@/hooks/use-toast"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 interface Prompt {
   id: string
-  name: string
+  type: 'system' | 'user' | 'assistant'
   content: string
+  name: string
+  description: string
   created_at: string
   updated_at: string
 }
 
 export default function PromptsPage() {
-  const [prompts, setPrompts] = useState<Prompt[]>([])
+  const [prompts, setPrompts] = useState<Record<string, Prompt>>({})
   const [isLoading, setIsLoading] = useState(true)
-  const [editingPrompt, setEditingPrompt] = useState<Prompt | null>(null)
-  const [newPrompt, setNewPrompt] = useState({ name: '', content: '' })
   const { toast } = useToast()
   const supabase = createClientComponentClient()
 
   // Load prompts on mount
-  useState(() => {
-    loadPrompts()
-  })
+  useEffect(() => {
+    const loadPrompts = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('prompts')
+          .select('*')
 
-  const loadPrompts = async () => {
+        if (error) throw error
+
+        // Convert array to record by type
+        const promptsRecord = data?.reduce((acc, prompt) => ({
+          ...acc,
+          [prompt.type]: prompt
+        }), {} as Record<string, Prompt>)
+
+        setPrompts(promptsRecord || {})
+      } catch (error) {
+        console.error('Error loading prompts:', error)
+        toast({
+          title: "Error",
+          description: "Failed to load prompts",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadPrompts()
+  }, [supabase, toast])
+
+  const handleSavePrompt = async (type: 'system' | 'user' | 'assistant') => {
     try {
+      const content = prompts[type]?.content || ''
+      const name = `${type}_prompt`
+      
+      if (!content.trim()) {
+        toast({
+          title: "Error",
+          description: "Prompt content cannot be empty",
+          variant: "destructive",
+        })
+        return
+      }
+
       const { data, error } = await supabase
         .from('prompts')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-      setPrompts(data || [])
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load prompts",
-        variant: "destructive",
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleSavePrompt = async (prompt: Prompt) => {
-    try {
-      const { error } = await supabase
-        .from('prompts')
-        .update({
-          name: prompt.name,
-          content: prompt.content,
-          updated_at: new Date().toISOString()
+        .upsert({
+          id: prompts[type]?.id || undefined,
+          type,
+          content,
+          name,
+          description: `Default ${type} prompt`,
+          updated_at: new Date().toISOString(),
         })
-        .eq('id', prompt.id)
+        .select()
+        .single()
 
       if (error) throw error
+
+      setPrompts(prev => ({
+        ...prev,
+        [type]: data as Prompt
+      }))
 
       toast({
         title: "Success",
-        description: "Prompt updated successfully",
+        description: `${type.charAt(0).toUpperCase() + type.slice(1)} prompt saved successfully`,
       })
-      setEditingPrompt(null)
-      loadPrompts()
     } catch (error) {
+      console.error('Error saving prompt:', error)
       toast({
         title: "Error",
-        description: "Failed to update prompt",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const handleCreatePrompt = async (e: React.FormEvent) => {
-    e.preventDefault()
-    try {
-      const { error } = await supabase
-        .from('prompts')
-        .insert({
-          name: newPrompt.name,
-          content: newPrompt.content,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-
-      if (error) throw error
-
-      toast({
-        title: "Success",
-        description: "Prompt created successfully",
-      })
-      setNewPrompt({ name: '', content: '' })
-      loadPrompts()
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to create prompt",
+        description: "Failed to save prompt",
         variant: "destructive",
       })
     }
   }
 
   if (isLoading) {
-    return <div>Loading...</div>
+    return (
+      <div className="flex items-center justify-center min-h-[200px]">
+        <p className="text-muted-foreground">Loading prompts...</p>
+      </div>
+    )
   }
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold">System Prompts</h1>
-        <p className="text-muted-foreground">
-          Manage the prompts used for document generation
-        </p>
-      </div>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>System Prompts</CardTitle>
+          <CardDescription>
+            Manage the prompts used for processing video transcriptions
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* System Prompt */}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="systemPrompt">System Prompt</Label>
+              <Textarea
+                id="systemPrompt"
+                placeholder="Enter the system prompt..."
+                value={prompts.system?.content || ''}
+                onChange={(e) => setPrompts(prev => ({
+                  ...prev,
+                  system: { ...prev.system, content: e.target.value } as Prompt
+                }))}
+                className="min-h-[100px]"
+              />
+              <p className="text-sm text-muted-foreground">
+                This prompt sets the behavior and context for the AI system.
+              </p>
+            </div>
+            <Button onClick={() => handleSavePrompt('system')}>
+              Save System Prompt
+            </Button>
+          </div>
 
-      {/* New Prompt Form */}
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold">Create New Prompt</h2>
-        <form onSubmit={handleCreatePrompt} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="new-name">Name</Label>
-            <Input
-              id="new-name"
-              value={newPrompt.name}
-              onChange={(e) => setNewPrompt({ ...newPrompt, name: e.target.value })}
-              required
-            />
+          {/* User Prompt */}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="userPrompt">User Prompt</Label>
+              <Textarea
+                id="userPrompt"
+                placeholder="Enter the user prompt..."
+                value={prompts.user?.content || ''}
+                onChange={(e) => setPrompts(prev => ({
+                  ...prev,
+                  user: { ...prev.user, content: e.target.value } as Prompt
+                }))}
+                className="min-h-[100px]"
+              />
+              <p className="text-sm text-muted-foreground">
+                This prompt represents the user&apos;s request or query format.
+              </p>
+            </div>
+            <Button onClick={() => handleSavePrompt('user')}>
+              Save User Prompt
+            </Button>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="new-content">Content</Label>
-            <Textarea
-              id="new-content"
-              value={newPrompt.content}
-              onChange={(e) => setNewPrompt({ ...newPrompt, content: e.target.value })}
-              required
-              className="min-h-[200px] font-mono"
-            />
-          </div>
-          <Button type="submit">Create Prompt</Button>
-        </form>
-      </div>
 
-      {/* Existing Prompts */}
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold">Existing Prompts</h2>
-        {prompts.map((prompt) => (
-          <div key={prompt.id} className="space-y-4 border p-4 rounded-lg">
-            {editingPrompt?.id === prompt.id ? (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor={`name-${prompt.id}`}>Name</Label>
-                  <Input
-                    id={`name-${prompt.id}`}
-                    value={editingPrompt.name}
-                    onChange={(e) => setEditingPrompt({ ...editingPrompt, name: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor={`content-${prompt.id}`}>Content</Label>
-                  <Textarea
-                    id={`content-${prompt.id}`}
-                    value={editingPrompt.content}
-                    onChange={(e) => setEditingPrompt({ ...editingPrompt, content: e.target.value })}
-                    className="min-h-[200px] font-mono"
-                  />
-                </div>
-                <div className="flex justify-end space-x-2">
-                  <Button variant="outline" onClick={() => setEditingPrompt(null)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={() => handleSavePrompt(editingPrompt)}>
-                    Save
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium">{prompt.name}</h3>
-                  <Button variant="outline" onClick={() => setEditingPrompt(prompt)}>
-                    Edit
-                  </Button>
-                </div>
-                <pre className="whitespace-pre-wrap font-mono text-sm bg-muted p-4 rounded">
-                  {prompt.content}
-                </pre>
-              </div>
-            )}
+          {/* Assistant Prompt */}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="assistantPrompt">Assistant Prompt</Label>
+              <Textarea
+                id="assistantPrompt"
+                placeholder="Enter the assistant prompt..."
+                value={prompts.assistant?.content || ''}
+                onChange={(e) => setPrompts(prev => ({
+                  ...prev,
+                  assistant: { ...prev.assistant, content: e.target.value } as Prompt
+                }))}
+                className="min-h-[100px]"
+              />
+              <p className="text-sm text-muted-foreground">
+                This prompt guides how the assistant should respond and format its output.
+              </p>
+            </div>
+            <Button onClick={() => handleSavePrompt('assistant')}>
+              Save Assistant Prompt
+            </Button>
           </div>
-        ))}
-      </div>
+        </CardContent>
+      </Card>
     </div>
   )
 } 

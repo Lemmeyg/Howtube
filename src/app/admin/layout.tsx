@@ -1,6 +1,3 @@
-import { redirect } from 'next/navigation'
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { SidebarNav } from '@/components/layout/sidebar-nav'
 
 const adminNavItems = [
@@ -9,55 +6,28 @@ const adminNavItems = [
     href: "/admin",
   },
   {
-    title: "Prompts",
+    title: "JSON Schemas",
+    href: "/admin/schemas",
+  },
+  {
+    title: "System Prompts",
     href: "/admin/prompts",
-  },
-  {
-    title: "JSON Schema",
-    href: "/admin/json-schema",
-  },
-  {
-    title: "Users",
-    href: "/admin/users",
-  },
-  {
-    title: "Analytics",
-    href: "/admin/analytics",
   },
 ]
 
-export default async function AdminLayout({
+export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const supabase = createServerComponentClient({ cookies })
-  
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-
-  if (!session) {
-    redirect('/sign-in')
-  }
-
-  // Check if user is admin
-  const { data: user } = await supabase
-    .from('users')
-    .select('is_admin')
-    .eq('id', session.user.id)
-    .single()
-
-  if (!user?.is_admin) {
-    redirect('/dashboard')
-  }
-
   return (
-    <div className="flex min-h-screen">
-      <SidebarNav items={adminNavItems} className="w-64 border-r" />
-      <main className="flex-1 p-8">
-        {children}
-      </main>
+    <div className="space-y-6 p-10 pb-16">
+      <div className="flex flex-col space-y-8 lg:flex-row lg:space-x-12 lg:space-y-0">
+        <aside className="lg:w-1/5">
+          <SidebarNav items={adminNavItems} />
+        </aside>
+        <div className="flex-1">{children}</div>
+      </div>
     </div>
   )
 } 
