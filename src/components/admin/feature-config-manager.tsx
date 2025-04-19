@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useFeatureConfig } from '@/hooks/use-feature-config';
+import { useFeatureConfig } from '@/components/ui/use-feature-config';
 import { SubscriptionTier, TierFeatures } from '@/config/subscription-tiers';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';

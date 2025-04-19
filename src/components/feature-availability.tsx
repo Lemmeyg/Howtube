@@ -1,4 +1,4 @@
-import { useFeatureAvailability } from '@/hooks/use-feature-availability';
+import { useFeatureAvailability } from '@/components/ui/use-feature-availability';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Check, X } from 'lucide-react';
 import { cn } from '@/lib/utils';

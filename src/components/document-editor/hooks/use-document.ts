@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useDebounce } from '@/hooks/use-debounce';
+import { useDebounce } from '@/components/ui/use-debounce';
 
 interface UseDocumentProps {
   onSave?: (content: string) => void;

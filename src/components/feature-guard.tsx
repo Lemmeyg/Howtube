@@ -1,7 +1,9 @@
-import { useFeatureAvailability } from '@/hooks/use-feature-availability';
+import { useFeatureAvailability } from '@/components/ui/use-feature-availability';
+import { useToast } from '@/components/ui/use-toast';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { useToast } from '@/components/ui/use-toast';
+import { ReactNode } from 'react';
+import { useFeatureToggles } from '@/lib/stores/feature-toggles';
 
 interface FeatureGuardProps {
   feature: keyof TierFeatures;

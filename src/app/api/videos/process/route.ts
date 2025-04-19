@@ -5,6 +5,7 @@ import { downloadAndTranscribe } from '@/lib/api/assembly-ai';
 import { processTranscription } from '@/lib/services/openai';
 import { OpenAIProcessingError } from '@/lib/services/openai';
 import { getYouTubeVideoId } from '@/lib/utils';
+import { updateVideoStatus } from '@/app/api/videos/status/route';
 
 export async function POST(request: Request) {
   try {
@@ -26,7 +27,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Properly await cookies() before using it
     const cookieStore = cookies();
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
 
@@ -63,21 +63,11 @@ export async function POST(request: Request) {
     (async () => {
       try {
         const progressCallback = async (progress: number, status: string, error?: string) => {
-          // Add a small delay to ensure updates are caught by the frontend
-          await new Promise(resolve => setTimeout(resolve, 100));
+          // Update in-memory status
+          updateVideoStatus(video.id, progress, status);
           
-          const { error: updateError } = await supabase
-            .from('videos')
-            .update({ 
-              progress,
-              status,
-              ...(error && { error_message: error })
-            })
-            .eq('id', video.id);
-
-          if (updateError) {
-            console.error('Error updating video progress:', updateError);
-          }
+          // Log progress to terminal
+          console.log(`Progress update for video ${video.id}: ${progress}% - ${status}`);
         };
 
         // Step 1: Download and transcribe with AssemblyAI
@@ -113,13 +103,17 @@ export async function POST(request: Request) {
           );
         }
 
-        // Update video with results
+        // Update final status
         await progressCallback(100, 'completed');
+
+        // Update video with results in database
         const { error: finalUpdateError } = await supabase
           .from('videos')
           .update({
             transcription: transcriptionResult,
             openai_result: openaiResult.content,
+            status: 'completed',
+            progress: 100
           })
           .eq('id', video.id);
 
@@ -142,6 +136,10 @@ export async function POST(request: Request) {
               error_type: 'processing'
             };
 
+        // Update error status in memory
+        updateVideoStatus(video.id, 0, 'error');
+
+        // Update error in database
         await supabase
           .from('videos')
           .update({

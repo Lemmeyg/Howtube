@@ -2,6 +2,7 @@ import { CheckCircle, Clock, Download, Eye, X } from "lucide-react"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
+import { useRouter } from "next/navigation"
 
 interface Video {
   id: string
@@ -18,6 +19,8 @@ interface VideoListProps {
 }
 
 export function VideoList({ videos }: VideoListProps) {
+  const router = useRouter()
+
   if (videos.length === 0) {
     return (
       <div className="text-center text-muted-foreground">
@@ -66,7 +69,11 @@ export function VideoList({ videos }: VideoListProps) {
           </CardContent>
           {video.status === "completed" && (
             <CardFooter className="p-4 pt-0 flex justify-end gap-2">
-              <Button variant="outline" size="sm">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => router.push(`/editor/${video.id}`)}
+              >
                 <Eye className="h-4 w-4 mr-1" />
                 View
               </Button>

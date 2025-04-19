@@ -12,7 +12,7 @@ import { Loader2 } from 'lucide-react';
 import { jsonToEditorContent } from './transformers/json-to-content';
 import { contentToJson } from './transformers/content-to-json';
 import { validateVideoContent, type VideoContent } from './transformers/schema-validator';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/components/ui/use-toast';
 import { useFeatureToggles } from '@/lib/stores/feature-toggles';
 import { useEffect, useState } from 'react';
 import { ExportOptions } from './export-options';
@@ -34,6 +34,9 @@ export function DocumentEditor({
   const features = useFeatureToggles();
   const [currentContent, setCurrentContent] = useState('');
   
+  console.log('DocumentEditor initialContent:', initialContent);
+  console.log('DocumentEditor initialContent type:', typeof initialContent);
+
   const { isSaving, saveDocument } = useDocument({
     onSave: async (content: string) => {
       if (onSave) {
@@ -92,6 +95,7 @@ export function DocumentEditor({
   useEffect(() => {
     if (editor && typeof initialContent !== 'string') {
       const content = jsonToEditorContent(initialContent, features);
+      console.log('Setting editor content:', content);
       editor.commands.setContent(content);
       setCurrentContent(content);
     }
@@ -111,7 +115,7 @@ export function DocumentEditor({
         {!readOnly && <Toolbar editor={editor} />}
         <ExportOptions editorContent={currentContent} title={title} />
       </div>
-      <EditorContent editor={editor} className="prose max-w-none" />
+      <EditorContent editor={editor} className="prose max-w-none min-h-[200px] border rounded-md p-4" />
       {isSaving && (
         <div className="mt-2 text-sm text-muted-foreground flex items-center gap-2">
           <Loader2 className="h-4 w-4 animate-spin" />

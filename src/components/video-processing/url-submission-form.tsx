@@ -22,6 +22,16 @@ interface VideoPayload {
     progress: number
     error_message?: string
   }
+  old: {
+    id: string
+    status: ProcessingStatus
+    progress: number
+    error_message?: string
+  }
+  commit_timestamp: string
+  eventType: 'UPDATE'
+  schema: string
+  table: string
 }
 
 export function YouTubeUrlForm() {
@@ -35,45 +45,57 @@ export function YouTubeUrlForm() {
   useEffect(() => {
     if (!currentVideoId) return
 
-    const channel = supabase
-      .channel('video-status')
-      .on<VideoPayload>(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'videos',
-          filter: `id=eq.${currentVideoId}`,
-        },
-        (payload) => {
-          const { status, progress = 0, error_message } = payload.new
+    // Set up SSE connection
+    const eventSource = new EventSource(`/api/videos/status?videoId=${currentVideoId}`, {
+      withCredentials: true
+    });
 
-          setStatus(status)
-          setProgress(progress)
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      console.log('Received status update:', data);
+      
+      setStatus(data.status as ProcessingStatus);
+      setProgress(data.progress);
 
-          if (status === 'completed') {
-            toast.success('Video processing completed!', {
-              duration: 5000,
-              description: 'You can now view the processed video in your dashboard.'
-            })
-            setTimeout(() => {
-              resetForm()
-            }, 2000)
-          } else if (status === 'error') {
-            toast.error('Processing Error', {
-              duration: 5000,
-              description: error_message || 'An unexpected error occurred'
-            })
-            resetForm()
-          }
-        }
-      )
-      .subscribe()
+      if (data.status === 'completed') {
+        toast.success('Video processing completed!', {
+          duration: 5000,
+          description: 'You can now view the processed video in your dashboard.'
+        });
+        setTimeout(() => {
+          resetForm();
+          eventSource.close();
+        }, 2000);
+      } else if (data.status === 'error') {
+        toast.error('Processing Error', {
+          duration: 5000,
+          description: 'An unexpected error occurred'
+        });
+        resetForm();
+        eventSource.close();
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('SSE Error:', error);
+      toast.error('Connection Error', {
+        duration: 5000,
+        description: 'Lost connection to server. Retrying...'
+      });
+      
+      // The EventSource will automatically try to reconnect
+      setStatus('error');
+    };
+
+    eventSource.onopen = () => {
+      console.log('SSE connection opened');
+    };
 
     return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [currentVideoId, supabase])
+      console.log('Cleaning up SSE connection');
+      eventSource.close();
+    };
+  }, [currentVideoId]);
 
   const resetForm = () => {
     setCurrentVideoId(null)
@@ -106,6 +128,7 @@ export function YouTubeUrlForm() {
         throw new Error(data.error || 'Failed to process video')
       }
 
+      console.log('Video processing started:', data.video.id)
       setCurrentVideoId(data.video.id)
       setUrl("")
     } catch (error) {
