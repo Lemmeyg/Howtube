@@ -84,15 +84,30 @@ export async function POST(request: Request) {
         // Update status for OpenAI processing
         await progressCallback(80, 'processing');
 
+        // Get the latest schema from the database
+        const { data: schemaData, error: schemaError } = await supabase
+          .from('json_schemas')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (schemaError) {
+          console.error('Error fetching schema:', schemaError);
+          throw new Error('Failed to fetch output schema');
+        }
+
+        // Parse the schema
+        const outputSchema = JSON.parse(schemaData.schema);
+
         // Step 2: Process with OpenAI
         const systemPrompt = `Analyze the following video transcription and extract key information. 
-          Focus on main topics, key points, and actionable insights. 
-          Format the response as a structured JSON object.`;
+          Format the response according to the provided schema structure.`;
 
         const openaiResult = await processTranscription(
           transcriptionResult.text,
           systemPrompt,
-          {} // TODO: Add schema validation
+          outputSchema
         );
 
         if (openaiResult.error) {

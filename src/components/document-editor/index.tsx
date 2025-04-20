@@ -80,9 +80,7 @@ export function DocumentEditor({
         placeholder: 'Start typing or paste your content here...',
       }),
     ],
-    content: typeof initialContent === 'string' 
-      ? initialContent 
-      : jsonToEditorContent(initialContent, features),
+    content: initialContent,
     editable: !readOnly,
     onUpdate: ({ editor }) => {
       const content = editor.getHTML();
@@ -93,13 +91,15 @@ export function DocumentEditor({
 
   // Update editor content when features change
   useEffect(() => {
-    if (editor && typeof initialContent !== 'string') {
-      const content = jsonToEditorContent(initialContent, features);
-      console.log('Setting editor content:', content);
-      editor.commands.setContent(content);
-      setCurrentContent(content);
+    if (editor && initialContent) {
+      console.log('Setting editor content:', initialContent);
+      // Add a small delay to ensure editor is fully initialized
+      setTimeout(() => {
+        editor.commands.setContent(initialContent);
+        setCurrentContent(initialContent);
+      }, 100);
     }
-  }, [editor, initialContent, features]);
+  }, [editor, initialContent]);
 
   if (!editor) {
     return (
@@ -115,7 +115,10 @@ export function DocumentEditor({
         {!readOnly && <Toolbar editor={editor} />}
         <ExportOptions editorContent={currentContent} title={title} />
       </div>
-      <EditorContent editor={editor} className="prose max-w-none min-h-[200px] border rounded-md p-4" />
+      <EditorContent 
+        editor={editor} 
+        className="prose max-w-none min-h-[200px] border rounded-md p-4" 
+      />
       {isSaving && (
         <div className="mt-2 text-sm text-muted-foreground flex items-center gap-2">
           <Loader2 className="h-4 w-4 animate-spin" />

@@ -63,25 +63,29 @@ export default function EditorPage() {
 
   // Convert OpenAI output to editor content
   const getInitialContent = () => {
-    if (!video) return '';
+    if (!video) {
+      console.log('No video data available');
+      return '';
+    }
     
     console.log('Getting initial content for video:', video);
     
-    // Try different possible content fields
-    const possibleContent = video.content || video.openai_output || video.transcription;
+    // Prioritize OpenAI output
+    const openAiContent = video.openai_output;
+    console.log('OpenAI content:', openAiContent);
     
-    if (!possibleContent) {
-      console.log('No content found in any field');
+    if (!openAiContent) {
+      console.log('No OpenAI content found');
       return '';
     }
     
     try {
-      // If it's a string, try to parse it as JSON
-      const content = typeof possibleContent === 'string' 
-        ? JSON.parse(possibleContent) 
-        : possibleContent;
+      // Parse content if it's a string
+      const content = typeof openAiContent === 'string' 
+        ? JSON.parse(openAiContent) 
+        : openAiContent;
       
-      console.log('Parsed content:', content);
+      console.log('Parsed OpenAI content:', content);
 
       // Convert the content object to HTML
       let html = '<div>';
@@ -96,36 +100,85 @@ export default function EditorPage() {
         html += `<p>${content.description}</p>`;
       }
 
-      // Add steps if they exist
-      if (Array.isArray(content.steps)) {
-        html += '<h2>Steps</h2><ol>';
-        content.steps.forEach((step: any) => {
-          html += `<li>${step.description || step}</li>`;
+      // Add sections with steps
+      if (Array.isArray(content.sections)) {
+        content.sections.forEach(section => {
+          html += `<h2>${section.title}</h2>`;
+          if (section.content) {
+            html += `<p>${section.content}</p>`;
+          }
+          
+          if (Array.isArray(section.steps)) {
+            html += '<ol>';
+            section.steps.forEach(step => {
+              html += '<li>';
+              if (step.title) {
+                html += `<h4>${step.title}</h4>`;
+              }
+              html += `<p>${step.description}</p>`;
+              if (step.duration) {
+                html += `<p class="duration"><em>Duration: ${step.duration}</em></p>`;
+              }
+              if (Array.isArray(step.materials) && step.materials.length > 0) {
+                html += '<p><strong>Materials for this step:</strong></p><ul>';
+                step.materials.forEach(material => {
+                  html += `<li>${material}</li>`;
+                });
+                html += '</ul>';
+              }
+              html += '</li>';
+            });
+            html += '</ol>';
+          }
         });
-        html += '</ol>';
       }
 
-      // Add materials if they exist
-      if (Array.isArray(content.materials)) {
+      // Add materials section if exists
+      if (Array.isArray(content.materials) && content.materials.length > 0) {
         html += '<h2>Materials Needed</h2><ul>';
-        content.materials.forEach((material: any) => {
-          html += `<li>${material}</li>`;
+        content.materials.forEach(material => {
+          let materialText = material.name;
+          if (material.quantity) {
+            materialText += ` (${material.quantity})`;
+          }
+          if (material.notes) {
+            materialText += ` - ${material.notes}`;
+          }
+          html += `<li>${materialText}</li>`;
         });
         html += '</ul>';
       }
 
-      // If no structured content was found, use the raw content
-      if (html === '<div>') {
-        html += `<p>${String(possibleContent)}</p>`;
+      // Add metadata if exists
+      if (content.timeEstimate || content.difficulty) {
+        html += '<div class="metadata">';
+        if (content.timeEstimate) {
+          html += `<p><strong>Time Estimate:</strong> ${content.timeEstimate}</p>`;
+        }
+        if (content.difficulty) {
+          html += `<p><strong>Difficulty:</strong> ${content.difficulty}</p>`;
+        }
+        html += '</div>';
+      }
+
+      // Add keywords if exist
+      if (Array.isArray(content.keywords) && content.keywords.length > 0) {
+        html += '<div class="keywords">';
+        html += '<h3>Keywords</h3>';
+        html += '<ul>';
+        content.keywords.forEach(keyword => {
+          html += `<li>${keyword}</li>`;
+        });
+        html += '</ul></div>';
       }
 
       html += '</div>';
       console.log('Generated HTML:', html);
       return html;
     } catch (error) {
-      console.error('Error parsing content:', error);
-      // Return the raw content as a fallback
-      return `<p>${String(possibleContent)}</p>`;
+      console.error('Error parsing OpenAI content:', error);
+      console.log('Raw OpenAI content that failed to parse:', openAiContent);
+      return `<div><p>Error parsing content. Please check the console for details.</p></div>`;
     }
   };
 
@@ -169,6 +222,7 @@ export default function EditorPage() {
             initialContent={editorContent}
             onSave={(content) => {
               console.log('Saving content:', content);
+              // TODO: Implement save functionality
             }}
           />
         </Card>

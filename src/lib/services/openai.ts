@@ -46,12 +46,31 @@ export async function processTranscription(
       );
     }
 
+    // Create a system prompt that includes the schema
+    const fullSystemPrompt = `
+      Analyze the following video transcription and extract key information.
+      You MUST format your response exactly according to this JSON schema:
+      ${JSON.stringify(outputSchema, null, 2)}
+
+      Guidelines:
+      1. The response must be valid JSON that matches the schema exactly
+      2. All required fields must be included
+      3. Break down the content into logical sections
+      4. Each section should have clear, actionable steps
+      5. Include specific materials needed for each step
+      6. Estimate durations for steps when possible
+      7. Set an appropriate difficulty level
+      8. Add relevant keywords for searchability
+
+      Your task is to structure the video content in a way that makes it easy to follow and implement.
+    `;
+
     const completion = await openai.chat.completions.create({
       model: OPENAI_CONFIG.model,
       messages: [
         {
           role: "system",
-          content: systemPrompt
+          content: fullSystemPrompt
         },
         {
           role: "user",
@@ -85,8 +104,16 @@ export async function processTranscription(
 
     // Validate against schema if provided
     if (outputSchema && Object.keys(outputSchema).length > 0) {
-      // TODO: Implement schema validation
-      console.log('Schema validation not yet implemented');
+      const { validateVideoContent } = require('@/components/document-editor/transformers/schema-validator');
+      const validation = validateVideoContent(content);
+      if (!validation.success) {
+        throw new OpenAIProcessingError(
+          `Invalid response structure: ${validation.error}`,
+          'schema_validation_failed',
+          'validation'
+        );
+      }
+      content = validation.data;
     }
     
     return {
