@@ -14,8 +14,8 @@ interface VideoContent {
   id: string;
   youtube_url: string;
   transcription: string | null;
-  openai_output: any;
-  content?: string; // Add this field as it might be stored differently
+  processed_content: any;
+  content?: string;
 }
 
 export default function EditorPage() {
@@ -40,8 +40,8 @@ export default function EditorPage() {
         if (error) throw error;
         
         console.log('Raw video data:', data);
-        console.log('OpenAI output type:', typeof data.openai_output);
-        console.log('OpenAI output:', data.openai_output);
+        console.log('Processed content type:', typeof data.processed_content);
+        console.log('Processed content:', data.processed_content);
         console.log('Content field:', data.content);
         console.log('Transcription:', data.transcription);
         
@@ -61,7 +61,7 @@ export default function EditorPage() {
     fetchVideo();
   }, [videoId, supabase, toast]);
 
-  // Convert OpenAI output to editor content
+  // Convert processed content to editor content
   const getInitialContent = () => {
     if (!video) {
       console.log('No video data available');
@@ -70,114 +70,105 @@ export default function EditorPage() {
     
     console.log('Getting initial content for video:', video);
     
-    // Prioritize OpenAI output
-    const openAiContent = video.openai_output;
-    console.log('OpenAI content:', openAiContent);
+    // Prioritize processed content
+    const processedContent = video.processed_content;
+    console.log('Processed content:', processedContent);
     
-    if (!openAiContent) {
-      console.log('No OpenAI content found');
+    if (!processedContent) {
+      console.log('No processed content found');
       return '';
     }
     
     try {
       // Parse content if it's a string
-      const content = typeof openAiContent === 'string' 
-        ? JSON.parse(openAiContent) 
-        : openAiContent;
+      const content = typeof processedContent === 'string' 
+        ? JSON.parse(processedContent) 
+        : processedContent;
       
-      console.log('Parsed OpenAI content:', content);
+      console.log('Parsed processed content:', content);
 
       // Convert the content object to HTML
       let html = '<div>';
       
-      // Add title if exists
-      if (content.title) {
-        html += `<h1>${content.title}</h1>`;
+      // Add main topic as title
+      if (content.main_topic) {
+        html += `<h1>${content.main_topic}</h1>`;
       }
 
-      // Add description if exists
-      if (content.description) {
-        html += `<p>${content.description}</p>`;
-      }
-
-      // Add sections with steps
-      if (Array.isArray(content.sections)) {
-        content.sections.forEach(section => {
-          html += `<h2>${section.title}</h2>`;
-          if (section.content) {
-            html += `<p>${section.content}</p>`;
-          }
-          
-          if (Array.isArray(section.steps)) {
-            html += '<ol>';
-            section.steps.forEach(step => {
-              html += '<li>';
-              if (step.title) {
-                html += `<h4>${step.title}</h4>`;
-              }
-              html += `<p>${step.description}</p>`;
-              if (step.duration) {
-                html += `<p class="duration"><em>Duration: ${step.duration}</em></p>`;
-              }
-              if (Array.isArray(step.materials) && step.materials.length > 0) {
-                html += '<p><strong>Materials for this step:</strong></p><ul>';
-                step.materials.forEach(material => {
-                  html += `<li>${material}</li>`;
-                });
-                html += '</ul>';
-              }
-              html += '</li>';
-            });
-            html += '</ol>';
-          }
-        });
-      }
-
-      // Add materials section if exists
-      if (Array.isArray(content.materials) && content.materials.length > 0) {
-        html += '<h2>Materials Needed</h2><ul>';
-        content.materials.forEach(material => {
-          let materialText = material.name;
-          if (material.quantity) {
-            materialText += ` (${material.quantity})`;
-          }
-          if (material.notes) {
-            materialText += ` - ${material.notes}`;
-          }
-          html += `<li>${materialText}</li>`;
-        });
-        html += '</ul>';
-      }
-
-      // Add metadata if exists
-      if (content.timeEstimate || content.difficulty) {
+      // Add company and presenter info
+      if (content.company || content.presenter) {
         html += '<div class="metadata">';
-        if (content.timeEstimate) {
-          html += `<p><strong>Time Estimate:</strong> ${content.timeEstimate}</p>`;
+        if (content.company) {
+          html += `<p><strong>Company:</strong> ${content.company}</p>`;
         }
-        if (content.difficulty) {
-          html += `<p><strong>Difficulty:</strong> ${content.difficulty}</p>`;
+        if (content.presenter) {
+          html += `<p><strong>Presenter:</strong> ${content.presenter}</p>`;
         }
         html += '</div>';
       }
 
-      // Add keywords if exist
-      if (Array.isArray(content.keywords) && content.keywords.length > 0) {
-        html += '<div class="keywords">';
-        html += '<h3>Keywords</h3>';
+      // Add key points section
+      if (Array.isArray(content.key_points) && content.key_points.length > 0) {
+        html += '<div class="key-points">';
+        html += '<h2>Key Points</h2>';
         html += '<ul>';
-        content.keywords.forEach(keyword => {
-          html += `<li>${keyword}</li>`;
+        content.key_points.forEach(point => {
+          if (typeof point === 'object') {
+            // Format different types of key points based on their structure
+            if (point.origin && point.tea_selection && point.characteristics) {
+              html += `<li>Tea Origin: ${point.origin}, Type: ${point.tea_selection}, Characteristics: ${point.characteristics}</li>`;
+            }
+            else if (point.participants && point.audience_interaction) {
+              html += `<li>Participants: ${point.participants.join(', ')} - ${point.audience_interaction}</li>`;
+            }
+            else if (point.tea_storage) {
+              const storage = point.tea_storage;
+              html += `<li>Storage: ${storage.storage_options.join(', ')}${storage.importance_of_freshness ? ' - Freshness is important' : ''}</li>`;
+            }
+            else if (point.brewing_instructions) {
+              const brewing = point.brewing_instructions;
+              html += `<li>Brewing: ${brewing.brewing_time}, Water: ${brewing.water_amount}, Tea bags: ${brewing.tea_bags_required}${brewing.Sophie_preference ? `, Sophie's preference: ${brewing.Sophie_preference}` : ''}</li>`;
+            }
+            else if (point.serving_suggestions) {
+              const serving = point.serving_suggestions;
+              html += `<li>Serving: ${serving.milk_addition}, ${serving.visual_guidance}</li>`;
+            }
+            else if (point.personal_experience) {
+              html += `<li>Experience: ${point.personal_experience.Sophie_rating}</li>`;
+            }
+            else {
+              // Fallback for any other object structure
+              html += `<li>${Object.values(point).join(', ')}</li>`;
+            }
+          } else {
+            // Handle non-object points (strings, etc.)
+            html += `<li>${point}</li>`;
+          }
         });
         html += '</ul></div>';
+      }
+
+      // Add actionable insights section
+      if (Array.isArray(content.actionable_insights) && content.actionable_insights.length > 0) {
+        html += '<div class="actionable-insights">';
+        html += '<h2>Actionable Insights</h2>';
+        html += '<ol>';
+        content.actionable_insights.forEach(insight => {
+          if (typeof insight === 'object') {
+            html += `<li>${Object.values(insight).join(', ')}</li>`;
+          } else {
+            html += `<li>${insight}</li>`;
+          }
+        });
+        html += '</ol></div>';
       }
 
       html += '</div>';
       console.log('Generated HTML:', html);
       return html;
     } catch (error) {
-      console.error('Error parsing OpenAI content:', error);
-      console.log('Raw OpenAI content that failed to parse:', openAiContent);
+      console.error('Error parsing processed content:', error);
+      console.log('Raw processed content that failed to parse:', processedContent);
       return `<div><p>Error parsing content. Please check the console for details.</p></div>`;
     }
   };

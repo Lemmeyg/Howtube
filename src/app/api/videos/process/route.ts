@@ -126,7 +126,7 @@ export async function POST(request: Request) {
           .from('videos')
           .update({
             transcription: transcriptionResult,
-            openai_result: openaiResult.content,
+            processed_content: openaiResult.content,
             status: 'completed',
             progress: 100
           })
