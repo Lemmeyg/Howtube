@@ -7,7 +7,14 @@ import { SubscriptionTier } from '@/config/subscription-tiers'
 
 const featureConfigService = new FeatureConfigService()
 
-const PUBLIC_PATHS = ['/sign-in', '/sign-up', '/reset-password']
+const PUBLIC_PATHS = [
+  '/sign-in', 
+  '/sign-up', 
+  '/reset-password', 
+  '/_next', 
+  '/api/public',
+  '/api/webhook'
+]
 const ADMIN_PATHS = ['/admin']
 
 export async function middleware(req: NextRequest) {
@@ -19,23 +26,17 @@ export async function middleware(req: NextRequest) {
       res,
       options: {
         auth: {
-          persistSession: false,
-          autoRefreshToken: false,
+          persistSession: true,
+          autoRefreshToken: true,
           flowType: 'pkce',
         },
         cookies: {
           name: 'sb-auth-token',
-          lifetime: 0,
+          lifetime: 60 * 60 * 24 * 7, // 1 week
           domain: '',
           sameSite: 'lax',
           secure: process.env.NODE_ENV === 'production',
           path: '/',
-        },
-        global: {
-          headers: {
-            'Cache-Control': 'no-store',
-            'Pragma': 'no-cache',
-          },
         },
       },
     })
@@ -47,10 +48,28 @@ export async function middleware(req: NextRequest) {
       return res
     }
 
-    // Get user data from session only (not localStorage)
+    // Handle API routes
+    if (pathname.startsWith('/api/')) {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (!session || sessionError) {
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          { status: 401 }
+        )
+      }
+
+      // Add user info to request headers for API routes
+      res.headers.set('x-user-id', session.user.id)
+      res.headers.set('x-user-role', session.user.role)
+      return res
+    }
+
+    // Get user data from session
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    
     if (!session || sessionError) {
-      // Clear all auth-related cookies
+      // Clear auth cookies on error
       const cookies = req.cookies.getAll()
       cookies.forEach(cookie => {
         if (cookie.name.startsWith('sb-') || cookie.name.includes('supabase')) {
@@ -60,10 +79,10 @@ export async function middleware(req: NextRequest) {
 
       // Only redirect to sign-in if not already there
       if (!pathname.startsWith('/sign-in')) {
-    const redirectUrl = new URL('/sign-in', req.url)
+        const redirectUrl = new URL('/sign-in', req.url)
         redirectUrl.searchParams.set('redirectedFrom', pathname)
-    return NextResponse.redirect(redirectUrl)
-  }
+        return NextResponse.redirect(redirectUrl)
+      }
       return res
     }
 
@@ -76,20 +95,20 @@ export async function middleware(req: NextRequest) {
         .single()
 
       if (!profile?.is_admin) {
-    return NextResponse.redirect(new URL('/dashboard', req.url))
-  }
+        return NextResponse.redirect(new URL('/dashboard', req.url))
+      }
 
-      // Set admin status in a session cookie
+      // Set admin status in a secure cookie
       res.cookies.set('is_admin', 'true', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
         path: '/',
-        maxAge: 0, // Session cookie
+        maxAge: 60 * 60 * 24, // 24 hours
       })
     }
 
-    // Set Cache-Control headers
+    // Set security headers
     res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
     res.headers.set('Pragma', 'no-cache')
     res.headers.set('Expires', '0')
@@ -98,7 +117,8 @@ export async function middleware(req: NextRequest) {
     return res
   } catch (error) {
     console.error('Middleware error:', error)
-    // Clear all auth-related cookies
+    
+    // Clear auth cookies on error
     const cookies = req.cookies.getAll()
     cookies.forEach(cookie => {
       if (cookie.name.startsWith('sb-') || cookie.name.includes('supabase')) {
@@ -106,11 +126,11 @@ export async function middleware(req: NextRequest) {
       }
     })
     
-    // Only redirect to sign-in if not already there
-    if (!req.nextUrl.pathname.startsWith('/sign-in')) {
+    // Only redirect to sign-in if not already there and not an API route
+    if (!req.nextUrl.pathname.startsWith('/sign-in') && !req.nextUrl.pathname.startsWith('/api/')) {
       return NextResponse.redirect(new URL('/sign-in', req.url))
     }
-  return res
+    return res
   }
 }
 

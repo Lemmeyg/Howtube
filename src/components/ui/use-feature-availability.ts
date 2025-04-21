@@ -1,17 +1,18 @@
 import { useFeatureConfig } from './use-feature-config';
-import { SubscriptionTier, TierFeatures } from '@/config/subscription-tiers';
+import { SubscriptionTier } from '@/config/subscription-tiers';
+import { FeatureName } from '@/types/feature-config';
 import { useUser } from './use-user';
 
 export function useFeatureAvailability() {
   const { user } = useUser();
   const { isFeatureEnabled, getTierFeatures } = useFeatureConfig();
 
-  const checkFeature = (feature: keyof TierFeatures): boolean => {
+  const checkFeature = (feature: FeatureName): boolean => {
     if (!user?.subscription_tier) return false;
     return isFeatureEnabled(user.subscription_tier as SubscriptionTier, feature);
   };
 
-  const getAvailableFeatures = (): TierFeatures => {
+  const getAvailableFeatures = (): Record<FeatureName, boolean> => {
     if (!user?.subscription_tier) {
       return {
         transcription: false,

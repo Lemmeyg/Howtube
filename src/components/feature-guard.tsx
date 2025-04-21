@@ -4,9 +4,10 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { ReactNode } from 'react';
 import { useFeatureToggles } from '@/lib/stores/feature-toggles';
+import { FeatureName } from '@/types/feature-config';
 
 interface FeatureGuardProps {
-  feature: keyof TierFeatures;
+  feature: FeatureName;
   children: React.ReactNode;
   fallback?: React.ReactNode;
 }

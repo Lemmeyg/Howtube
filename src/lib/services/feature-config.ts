@@ -1,12 +1,15 @@
 import { createClient } from '@/lib/supabase/server';
-import { FeatureConfig } from '@/types/feature-config';
-import { SubscriptionTier, TierFeatures } from '@/config/subscription-tiers';
+import { FeatureConfig, FeatureName } from '@/types/feature-config';
+import { SubscriptionTier, SUBSCRIPTION_ACCESS } from '@/config/subscription-tiers';
 
 export class FeatureConfigService {
-  private supabase = createClient();
+  async getSupabase() {
+    return await createClient();
+  }
 
   async getFeatureConfigs(): Promise<FeatureConfig[]> {
-    const { data, error } = await this.supabase
+    const supabase = await this.getSupabase();
+    const { data, error } = await supabase
       .from('feature_configs')
       .select('*')
       .order('tier')
@@ -21,7 +24,8 @@ export class FeatureConfigService {
   }
 
   async updateFeatureConfigs(configs: FeatureConfig[]): Promise<void> {
-    const { error } = await this.supabase
+    const supabase = await this.getSupabase();
+    const { error } = await supabase
       .from('feature_configs')
       .upsert(configs, {
         onConflict: 'tier,feature',
@@ -33,39 +37,49 @@ export class FeatureConfigService {
     }
   }
 
-  async getFeatureConfig(tier: SubscriptionTier, feature: keyof TierFeatures): Promise<FeatureConfig | null> {
-    const { data, error } = await this.supabase
+  async getFeatureConfig(tier: SubscriptionTier, feature: FeatureName): Promise<FeatureConfig | null> {
+    const supabase = await this.getSupabase();
+    // Get all accessible tiers for the current tier
+    const accessibleTiers = SUBSCRIPTION_ACCESS[tier];
+
+    // Get configs for all accessible tiers
+    const { data, error } = await supabase
       .from('feature_configs')
       .select('*')
-      .eq('tier', tier)
-      .eq('feature', feature)
-      .single();
+      .in('tier', accessibleTiers)
+      .eq('feature', feature);
 
     if (error) {
       console.error('Error fetching feature config:', error);
       throw error;
     }
 
-    return data;
+    // Return the first enabled config, prioritizing higher tiers
+    return data.find(config => config.enabled) || null;
   }
 
-  async isFeatureEnabled(tier: SubscriptionTier, feature: keyof TierFeatures): Promise<boolean> {
+  async isFeatureEnabled(tier: SubscriptionTier, feature: FeatureName): Promise<boolean> {
     const config = await this.getFeatureConfig(tier, feature);
     return config?.enabled ?? false;
   }
 
-  async getTierFeatures(tier: SubscriptionTier): Promise<TierFeatures> {
-    const { data, error } = await this.supabase
+  async getTierFeatures(tier: SubscriptionTier): Promise<Record<FeatureName, boolean>> {
+    const supabase = await this.getSupabase();
+    // Get all accessible tiers for the current tier
+    const accessibleTiers = SUBSCRIPTION_ACCESS[tier];
+
+    // Get configs for all accessible tiers
+    const { data, error } = await supabase
       .from('feature_configs')
       .select('*')
-      .eq('tier', tier);
+      .in('tier', accessibleTiers);
 
     if (error) {
       console.error('Error fetching tier features:', error);
       throw error;
     }
 
-    const features: TierFeatures = {
+    const features: Record<FeatureName, boolean> = {
       transcription: false,
       aiProcessing: false,
       export: false,
@@ -73,26 +87,30 @@ export class FeatureConfigService {
       customBranding: false,
     };
 
-    data?.forEach((config) => {
-      features[config.feature as keyof TierFeatures] = config.enabled;
+    // For each feature, check if it's enabled in any accessible tier
+    Object.keys(features).forEach((feature) => {
+      const configs = data.filter(config => config.feature === feature);
+      features[feature as FeatureName] = configs.some(config => config.enabled);
     });
 
     return features;
   }
 
   subscribeToChanges(callback: (payload: any) => void) {
-    return this.supabase
-      .channel('feature_configs_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'feature_configs'
-        },
-        callback
-      )
-      .subscribe();
+    return this.getSupabase().then(supabase => 
+      supabase
+        .channel('feature_configs_changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'feature_configs'
+          },
+          callback
+        )
+        .subscribe()
+    );
   }
 }
 

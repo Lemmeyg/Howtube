@@ -9,6 +9,8 @@ import { Card } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { getUserSubscriptionTier } from '@/lib/auth/subscription';
+import { useFeatureToggles } from '@/lib/stores/feature-toggles';
 
 interface VideoContent {
   id: string;
@@ -25,6 +27,16 @@ export default function EditorPage() {
   const supabase = createClientComponentClient();
   const { toast } = useToast();
   const router = useRouter();
+  const { setUserTier } = useFeatureToggles();
+
+  // Check user's subscription on mount
+  useEffect(() => {
+    async function checkSubscription() {
+      const tier = await getUserSubscriptionTier();
+      setUserTier(tier);
+    }
+    checkSubscription();
+  }, [setUserTier]);
 
   useEffect(() => {
     const fetchVideo = async () => {
