@@ -45,7 +45,10 @@ export async function middleware(req: NextRequest) {
     const pathname = req.nextUrl.pathname
 
     // Skip auth check for public paths
-    if (PUBLIC_PATHS.some(path => pathname.startsWith(path))) {
+    if (PUBLIC_PATHS.some(path => {
+      // Exact match for root path, or starts with for other paths
+      return path === '/' ? pathname === '/' : pathname.startsWith(path)
+    })) {
       return res
     }
 

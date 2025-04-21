@@ -14,10 +14,9 @@ interface Video {
   id: string;
   youtube_url: string;
   title: string;
+  description: string;
   created_at: string;
-  user_id: string;
-  user_email: string;
-  status: string;
+  display_order: number;
 }
 
 export default function Home() {
@@ -33,38 +32,29 @@ export default function Home() {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setIsLoggedIn(!!session);
-      
-      // Only fetch videos if user is logged in
-      if (session) {
-        fetchVideos();
-      } else {
-        setLoading(false); // Make sure to set loading to false if not fetching
-      }
     };
 
     const fetchVideos = async () => {
       try {
         const { data, error } = await supabase
-          .from('videos')
+          .from('public_video')
           .select(`
             id,
             youtube_url,
-            title,
-            created_at,
-            user_id,
-            profiles:user_id (email)
+            processed_content,
+            created_at
           `)
-          .order('created_at', { ascending: false })
-          .limit(8);
+          .order('created_at', { ascending: false });
 
         if (error) throw error;
 
-        const formattedVideos = data.map(video => ({
-          ...video,
-          user_email: video.profiles?.email || 'Unknown User'
-        }));
-
-        setVideos(formattedVideos);
+        setVideos(data.map(video => ({
+          id: video.id,
+          youtube_url: video.youtube_url,
+          title: video.processed_content?.title || 'Untitled',
+          description: video.processed_content?.description || '',
+          created_at: video.created_at
+        })));
       } catch (error) {
         console.error('Error fetching videos:', error);
       } finally {
@@ -73,6 +63,7 @@ export default function Home() {
     };
 
     checkUser();
+    fetchVideos();
   }, [supabase]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -201,33 +192,55 @@ export default function Home() {
                     </Card>
                   ))
                 ) : (
-                  videos.map((video) => (
-                    <Card key={video.id} className="w-[300px] flex-shrink-0 shadow-md card-hover-effect bg-card border border-border/50">
-                      <CardHeader className="p-4">
-                        <div className="aspect-video w-full bg-accent rounded-md overflow-hidden relative">
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <Youtube className="h-10 w-10 text-red-500" />
+                  <>
+                    {videos.map((video) => (
+                      <Card key={video.id} className="w-[300px] flex-shrink-0 shadow-md card-hover-effect bg-card border border-border/50">
+                        <CardHeader className="p-4">
+                          <div className="aspect-video w-full bg-accent rounded-md overflow-hidden relative">
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <Youtube className="h-10 w-10 text-red-500" />
+                            </div>
                           </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="p-4 pt-0">
-                        <CardTitle className="line-clamp-1 text-lg">{video.title || 'Untitled'}</CardTitle>
-                        <CardDescription className="line-clamp-2 mt-2">
-                          {video.youtube_url}
-                        </CardDescription>
-                      </CardContent>
-                      <CardFooter className="p-4 pt-0 flex justify-between items-center text-sm text-muted-foreground">
-                        <div className="flex items-center">
-                          <Clock className="mr-1 h-3 w-3" />
-                          <span>{new Date(video.created_at).toLocaleDateString()}</span>
-                        </div>
-                        <div className="flex items-center">
-                          <User className="mr-1 h-3 w-3" />
-                          <span>{video.user_email}</span>
-                        </div>
-                      </CardFooter>
-                    </Card>
-                  ))
+                        </CardHeader>
+                        <CardContent className="p-4 pt-0">
+                          <CardTitle className="line-clamp-1 text-lg">{video.title || 'Untitled'}</CardTitle>
+                          <CardDescription className="line-clamp-2 mt-2">
+                            {video.description}
+                          </CardDescription>
+                        </CardContent>
+                        <CardFooter className="p-4 pt-0 flex justify-between items-center text-sm text-muted-foreground">
+                          <div className="flex items-center">
+                            <Clock className="mr-1 h-3 w-3" />
+                            <span>{new Date(video.created_at).toLocaleDateString()}</span>
+                          </div>
+                        </CardFooter>
+                      </Card>
+                    ))}
+                    {/* Duplicate the videos for seamless scrolling */}
+                    {videos.map((video) => (
+                      <Card key={`${video.id}-duplicate`} className="w-[300px] flex-shrink-0 shadow-md card-hover-effect bg-card border border-border/50">
+                        <CardHeader className="p-4">
+                          <div className="aspect-video w-full bg-accent rounded-md overflow-hidden relative">
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <Youtube className="h-10 w-10 text-red-500" />
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="p-4 pt-0">
+                          <CardTitle className="line-clamp-1 text-lg">{video.title || 'Untitled'}</CardTitle>
+                          <CardDescription className="line-clamp-2 mt-2">
+                            {video.description}
+                          </CardDescription>
+                        </CardContent>
+                        <CardFooter className="p-4 pt-0 flex justify-between items-center text-sm text-muted-foreground">
+                          <div className="flex items-center">
+                            <Clock className="mr-1 h-3 w-3" />
+                            <span>{new Date(video.created_at).toLocaleDateString()}</span>
+                          </div>
+                        </CardFooter>
+                      </Card>
+                    ))}
+                  </>
                 )}
               </div>
             </div>

@@ -122,3 +122,21 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(calc(-300px * var(--video-count)));
+  }
+}
+
+.animate-scroll {
+  animation: scroll 30s linear infinite;
+  --video-count: 8; /* This will be updated dynamically */
+}
+
+.hover\:pause-animation:hover {
+  animation-play-state: paused;
+}
