@@ -1,98 +1,50 @@
 import { DOMParser } from 'prosemirror-model';
-
-interface VideoContent {
-  title?: string;
-  description?: string;
-  sections?: {
-    title: string;
-    content: string;
-    steps?: {
-      title: string;
-      description: string;
-      duration?: string;
-      materials?: string[];
-    }[];
-  }[];
-  materials?: {
-    name: string;
-    quantity?: string;
-    notes?: string;
-  }[];
-  timeEstimate?: string;
-  difficulty?: 'beginner' | 'intermediate' | 'advanced';
-  keywords?: string[];
-}
+import { type VideoContent } from './schema-validator';
 
 export function contentToJson(html: string): VideoContent {
   // Create a temporary div to parse HTML
   const div = document.createElement('div');
   div.innerHTML = html;
 
-  const result: VideoContent = {};
+  const result: VideoContent = {
+    title: '',
+    summary: '',
+    sections: [],
+    difficulty: 'beginner',
+    keywords: []
+  };
 
   // Extract title
   const h1 = div.querySelector('h1');
   if (h1) {
-    result.title = h1.textContent || undefined;
+    result.title = h1.textContent || '';
   }
 
-  // Extract description (first p after h1)
+  // Extract summary (first p after h1)
   const firstP = div.querySelector('h1 + p');
   if (firstP) {
-    result.description = firstP.textContent || undefined;
+    result.summary = firstP.textContent || '';
   }
 
   // Extract metadata
   const metadata = div.querySelector('.metadata');
   if (metadata) {
     const difficultyEl = metadata.querySelector('p:contains("Difficulty:")');
-    const timeEstimateEl = metadata.querySelector('p:contains("Time Estimate:")');
-
     if (difficultyEl) {
       const difficulty = difficultyEl.textContent?.split(':')[1]?.trim();
-      if (difficulty) {
-        result.difficulty = difficulty as 'beginner' | 'intermediate' | 'advanced';
+      if (difficulty === 'beginner' || difficulty === 'intermediate' || difficulty === 'advanced') {
+        result.difficulty = difficulty;
       }
-    }
-
-    if (timeEstimateEl) {
-      result.timeEstimate = timeEstimateEl.textContent?.split(':')[1]?.trim();
-    }
-  }
-
-  // Extract materials
-  const materialsSection = Array.from(div.querySelectorAll('h2')).find(h2 => 
-    h2.textContent?.toLowerCase().includes('materials')
-  );
-  if (materialsSection) {
-    const materialsList = materialsSection.nextElementSibling;
-    if (materialsList?.tagName === 'UL') {
-      result.materials = Array.from(materialsList.querySelectorAll('li')).map(li => {
-        const text = li.textContent || '';
-        const quantity = text.match(/\((.*?)\)/)?.[1];
-        const notes = text.split('-')[1]?.trim();
-        const name = text
-          .replace(/\((.*?)\)/, '')
-          .split('-')[0]
-          .trim();
-
-        return {
-          name,
-          ...(quantity && { quantity }),
-          ...(notes && { notes }),
-        };
-      });
     }
   }
 
   // Extract sections
-  result.sections = [];
   let currentSection: typeof result.sections[0] | null = null;
 
   Array.from(div.children).forEach(element => {
-    if (element.tagName === 'H2' && !element.textContent?.toLowerCase().includes('materials')) {
+    if (element.tagName === 'H2') {
       if (currentSection) {
-        result.sections?.push(currentSection);
+        result.sections.push(currentSection);
       }
       currentSection = {
         title: element.textContent || '',
@@ -103,29 +55,39 @@ export function contentToJson(html: string): VideoContent {
       currentSection.content += (currentSection.content ? ' ' : '') + (element.textContent || '');
     } else if (currentSection && element.tagName === 'OL') {
       currentSection.steps = Array.from(element.querySelectorAll('li')).map(li => {
-        const step = {
-          title: li.querySelector('h4')?.textContent || '',
-          description: li.querySelector('p:not(.duration)')?.textContent || '',
-          duration: li.querySelector('.duration')?.textContent?.match(/Duration: (.*)/)?.[1],
-          materials: Array.from(li.querySelectorAll('ul li')).map(material => 
-            material.textContent || ''
-          ),
+        const titleEl = li.querySelector('h4');
+        const descriptionEl = li.querySelector('p:not(.duration)');
+        const detailsEl = descriptionEl?.nextElementSibling;
+        const durationEl = li.querySelector('.duration');
+        const materialsUl = li.querySelector('ul');
+
+        return {
+          ...(titleEl?.textContent && { title: titleEl.textContent }),
+          description: descriptionEl?.textContent || '',
+          details: detailsEl?.textContent || '',
+          ...(durationEl?.textContent && { 
+            duration: durationEl.textContent.match(/Duration: (.*)/)?.[1] || ''
+          }),
+          ...(materialsUl && {
+            materials: Array.from(materialsUl.querySelectorAll('li')).map(material => 
+              material.textContent || ''
+            )
+          })
         };
-        return step;
       });
     }
   });
 
   if (currentSection) {
-    result.sections?.push(currentSection);
+    result.sections.push(currentSection);
   }
 
   // Extract keywords
   const keywordsSection = div.querySelector('.keywords');
   if (keywordsSection) {
-    result.keywords = Array.from(keywordsSection.querySelectorAll('li')).map(li => 
-      li.textContent || ''
-    );
+    result.keywords = Array.from(keywordsSection.querySelectorAll('li'))
+      .map(li => li.textContent || '')
+      .filter(keyword => keyword.length > 0);
   }
 
   return result;

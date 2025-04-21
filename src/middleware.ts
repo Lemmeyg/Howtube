@@ -8,6 +8,7 @@ import { SubscriptionTier } from '@/config/subscription-tiers'
 const featureConfigService = new FeatureConfigService()
 
 const PUBLIC_PATHS = [
+  '/',
   '/sign-in', 
   '/sign-up', 
   '/reset-password', 

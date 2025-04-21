@@ -2,8 +2,9 @@ import { z } from 'zod';
 
 // Define the schema using Zod
 const stepSchema = z.object({
-  title: z.string(),
   description: z.string(),
+  details: z.string(),
+  title: z.string().optional(),
   duration: z.string().optional(),
   materials: z.array(z.string()).optional(),
 });
@@ -11,7 +12,7 @@ const stepSchema = z.object({
 const sectionSchema = z.object({
   title: z.string(),
   content: z.string(),
-  steps: z.array(stepSchema).optional(),
+  steps: z.array(stepSchema),
 });
 
 const materialSchema = z.object({
@@ -21,13 +22,13 @@ const materialSchema = z.object({
 });
 
 export const videoContentSchema = z.object({
-  title: z.string().optional(),
-  description: z.string().optional(),
-  sections: z.array(sectionSchema).optional(),
+  title: z.string(),
+  summary: z.string(),
+  sections: z.array(sectionSchema),
+  difficulty: z.enum(['beginner', 'intermediate', 'advanced']),
+  keywords: z.array(z.string()),
   materials: z.array(materialSchema).optional(),
   timeEstimate: z.string().optional(),
-  difficulty: z.enum(['beginner', 'intermediate', 'advanced']).optional(),
-  keywords: z.array(z.string()).optional(),
 });
 
 export type VideoContent = z.infer<typeof videoContentSchema>;

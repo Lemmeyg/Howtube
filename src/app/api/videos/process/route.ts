@@ -6,9 +6,38 @@ import { processTranscription } from '@/lib/services/openai';
 import { OpenAIProcessingError } from '@/lib/services/openai';
 import { getYouTubeVideoId } from '@/lib/utils';
 import { updateVideoStatus } from '@/app/api/videos/status/route';
+import { DEFAULT_OUTPUT_SCHEMA } from '@/lib/constants/schemas';
+
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 second
+
+async function delay(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function retryOperation<T>(
+  operation: () => Promise<T>,
+  retries: number = MAX_RETRIES,
+  delayMs: number = RETRY_DELAY
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (retries > 0) {
+      await delay(delayMs);
+      return retryOperation(operation, retries - 1, delayMs * 2);
+    }
+    throw error;
+  }
+}
 
 export async function POST(request: Request) {
   try {
+    const cookieStore = await cookies();
+    const supabase = createRouteHandlerClient({ 
+      cookies: () => cookieStore 
+    });
+  
     const { youtubeUrl } = await request.json();
 
     if (!youtubeUrl) {
@@ -27,9 +56,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const cookieStore = cookies();
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
-
     // Get user from session
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
     if (sessionError || !session) {
@@ -39,14 +65,15 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create video record
+    // Create video record with basic status tracking for now
     const { data: video, error: videoError } = await supabase
       .from('videos')
       .insert({
         user_id: session.user.id,
         youtube_url: youtubeUrl,
         status: 'initializing',
-        progress: 0
+        progress: 0,
+        updated_at: new Date().toISOString()
       })
       .select()
       .single();
@@ -61,30 +88,44 @@ export async function POST(request: Request) {
 
     // Process video in background
     (async () => {
+      const updateStatus = async (status: string, progress: number, error?: any) => {
+        // Update video record with status and progress
+        await supabase
+          .from('videos')
+          .update({
+            status,
+            progress,
+            updated_at: new Date().toISOString(),
+            ...(error && { 
+              error: error.message || JSON.stringify(error),
+              error_code: error.code || 'unknown',
+              error_type: error.type || 'processing'
+            })
+          })
+          .eq('id', video.id);
+
+        // Update in-memory status
+        updateVideoStatus(video.id, progress, status);
+      };
+
       try {
         const progressCallback = async (progress: number, status: string, error?: string) => {
-          // Update in-memory status
-          updateVideoStatus(video.id, progress, status);
-          
-          // Log progress to terminal
-          console.log(`Progress update for video ${video.id}: ${progress}% - ${status}`);
+          await updateStatus(status, progress, error ? { message: error } : undefined);
         };
 
         // Step 1: Download and transcribe with AssemblyAI
         await progressCallback(10, 'downloading');
-        const transcriptionResult = await downloadAndTranscribe(
-          youtubeUrl,
-          progressCallback
-        );
+        const transcriptionResult = await retryOperation(async () => {
+          const result = await downloadAndTranscribe(youtubeUrl, progressCallback);
+          if (!result || !result.text) {
+            throw new Error('Transcription failed or returned empty result');
+          }
+          return result;
+        });
 
-        if (!transcriptionResult || !transcriptionResult.text) {
-          throw new Error('Failed to transcribe video');
-        }
-
-        // Update status for OpenAI processing
         await progressCallback(80, 'processing');
 
-        // Get the latest schema from the database
+        // Get the latest schema from the database with fallback
         const { data: schemaData, error: schemaError } = await supabase
           .from('json_schemas')
           .select('*')
@@ -92,30 +133,65 @@ export async function POST(request: Request) {
           .limit(1)
           .single();
 
-        if (schemaError) {
-          console.error('Error fetching schema:', schemaError);
-          throw new Error('Failed to fetch output schema');
+        let outputSchema = DEFAULT_OUTPUT_SCHEMA;
+        if (!schemaError && schemaData?.schema) {
+          try {
+            outputSchema = JSON.parse(schemaData.schema);
+          } catch (parseError) {
+            console.warn('Failed to parse database schema, using default:', parseError);
+            await updateStatus(
+              'warning',
+              'Failed to parse database schema, using default schema',
+              parseError
+            );
+          }
         }
 
-        // Parse the schema
-        const outputSchema = JSON.parse(schemaData.schema);
+        // Step 2: Process with OpenAI with retry logic
+        const systemPrompt = `Analyze the following video transcription and extract key information.
+Format the response according to the provided schema structure.
 
-        // Step 2: Process with OpenAI
-        const systemPrompt = `Analyze the following video transcription and extract key information. 
-          Format the response according to the provided schema structure.`;
+Required fields:
+1. title: A clear, concise title for the tutorial
+2. summary: A brief overview of what the tutorial covers
+3. sections: An array of sections, each containing:
+   - title: Section heading
+   - content: Section overview
+   - steps: Array of steps, each containing:
+     - description: What to do
+     - details: How to do it
+     Optional step fields:
+     - title: Step title
+     - duration: Estimated time
+     - materials: Array of required items
+4. difficulty: One of: 'beginner', 'intermediate', 'advanced'
+5. keywords: Array of relevant search terms
 
-        const openaiResult = await processTranscription(
-          transcriptionResult.text,
-          systemPrompt,
-          outputSchema
-        );
+Be thorough and detailed in your analysis.
+Break down complex steps into smaller, manageable parts.
+Include any relevant technical terms, tools, or materials mentioned.`;
 
-        if (openaiResult.error) {
-          throw new OpenAIProcessingError(
-            openaiResult.error,
-            openaiResult.code || 'unknown',
-            openaiResult.type || 'api'
+        const openaiResult = await retryOperation(async () => {
+          const result = await processTranscription(
+            transcriptionResult.text,
+            systemPrompt,
+            outputSchema
           );
+
+          if (result.error) {
+            throw new OpenAIProcessingError(
+              result.error,
+              result.code || 'unknown',
+              result.type || 'api'
+            );
+          }
+
+          return result;
+        });
+
+        // Validate OpenAI response
+        if (!openaiResult.content || Object.keys(openaiResult.content).length === 0) {
+          throw new Error('OpenAI returned empty or invalid content');
         }
 
         // Update final status
@@ -128,12 +204,18 @@ export async function POST(request: Request) {
             transcription: transcriptionResult,
             processed_content: openaiResult.content,
             status: 'completed',
-            progress: 100
+            progress: 100,
+            updated_at: new Date().toISOString()
           })
           .eq('id', video.id);
 
         if (finalUpdateError) {
           console.error('Error updating final video state:', finalUpdateError);
+          await updateStatus(
+            'error',
+            'Failed to save final results',
+            finalUpdateError
+          );
         }
 
       } catch (error) {
@@ -154,13 +236,21 @@ export async function POST(request: Request) {
         // Update error status in memory
         updateVideoStatus(video.id, 0, 'error');
 
+        // Log the error
+        await updateStatus(
+          'error',
+          'Processing failed',
+          errorDetails
+        );
+
         // Update error in database
         await supabase
           .from('videos')
           .update({
             status: 'error',
             ...errorDetails,
-            progress: 0
+            progress: 0,
+            updated_at: new Date().toISOString()
           })
           .eq('id', video.id);
       }
@@ -171,7 +261,10 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error in video processing route:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : 'Unknown error occurred'
+      },
       { status: 500 }
     );
   }

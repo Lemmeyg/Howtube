@@ -1,27 +1,5 @@
 import { type FeatureToggles } from '@/lib/stores/feature-toggles';
-
-interface VideoContent {
-  title?: string;
-  description?: string;
-  sections?: {
-    title: string;
-    content: string;
-    steps?: {
-      title: string;
-      description: string;
-      duration?: string;
-      materials?: string[];
-    }[];
-  }[];
-  materials?: {
-    name: string;
-    quantity?: string;
-    notes?: string;
-  }[];
-  timeEstimate?: string;
-  difficulty?: 'beginner' | 'intermediate' | 'advanced';
-  keywords?: string[];
-}
+import { type VideoContent } from './schema-validator';
 
 export function jsonToEditorContent(json: VideoContent, features: FeatureToggles): string {
   let content = '';
@@ -31,37 +9,16 @@ export function jsonToEditorContent(json: VideoContent, features: FeatureToggles
     content += `<h1>${json.title}</h1>`;
   }
 
-  // Add description
-  if (json.description) {
-    content += `<p>${json.description}</p>`;
+  // Add summary
+  if (json.summary) {
+    content += `<p>${json.summary}</p>`;
   }
 
-  // Add difficulty and time estimate if available
-  if ((features.showDifficulty && json.difficulty) || (features.showTimeEstimates && json.timeEstimate)) {
+  // Add difficulty if available
+  if (features.showDifficulty && json.difficulty) {
     content += '<div class="metadata">';
-    if (features.showDifficulty && json.difficulty) {
-      content += `<p><strong>Difficulty:</strong> ${json.difficulty}</p>`;
-    }
-    if (features.showTimeEstimates && json.timeEstimate) {
-      content += `<p><strong>Time Estimate:</strong> ${json.timeEstimate}</p>`;
-    }
+    content += `<p><strong>Difficulty:</strong> ${json.difficulty}</p>`;
     content += '</div>';
-  }
-
-  // Add materials section if available
-  if (features.showMaterials && json.materials && json.materials.length > 0) {
-    content += '<h2>Materials Needed</h2><ul>';
-    json.materials.forEach(material => {
-      let materialText = material.name;
-      if (material.quantity) {
-        materialText += ` (${material.quantity})`;
-      }
-      if (material.notes) {
-        materialText += ` - ${material.notes}`;
-      }
-      content += `<li>${materialText}</li>`;
-    });
-    content += '</ul>';
   }
 
   // Add sections
@@ -74,8 +31,12 @@ export function jsonToEditorContent(json: VideoContent, features: FeatureToggles
         content += '<ol>';
         section.steps.forEach(step => {
           content += '<li>';
-          content += `<h4>${step.title}</h4>`;
+          if (step.title) {
+            content += `<h4>${step.title}</h4>`;
+          }
           content += `<p>${step.description}</p>`;
+          content += `<p>${step.details}</p>`;
+          
           if (features.showStepDurations && step.duration) {
             content += `<p class="duration"><em>Duration: ${step.duration}</em></p>`;
           }

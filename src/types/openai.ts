@@ -3,12 +3,14 @@ import { JsonSchema } from './json-schema';
 export interface OpenAIRequest {
   transcription: string;
   systemPrompt: string;
-  outputSchema: JsonSchema;
+  outputSchema: any;
 }
 
 export interface OpenAIResponse {
-  content: Record<string, any>;
+  content: any;
   error?: string;
+  code?: string;
+  type?: 'api' | 'validation' | 'timeout' | 'rate_limit' | 'content_filter' | 'invalid_request';
 }
 
 export interface OpenAIError {
