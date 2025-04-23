@@ -1,0 +1,146 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "task_overview": {
+      "type": "string",
+      "description": "Summary of the task's purpose and end goal"
+    },
+    "prerequisite_knowledge": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Required foundational concepts"
+    },
+    "tools_equipment": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Physical/digital tools needed for all steps"
+    },
+    "safety_requirements": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Mandatory protective gear/protocols"
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "step_title": {"type": "string"},
+          "step_id": {"type": "string"},
+          "description": {"type": "string"},
+          "prerequisites": {"type": "array", "items": {"type": "string"}},
+          "estimated_time": {"type": "string"},
+          "materials_needed": {"type": "array", "items": {"type": "string"}},
+          "actions": {"type": "array", "items": {"type": "string"}},
+          "expected_outcomes": {"type": "string"},
+          "assessments": {
+            "type": "object",
+            "properties": {
+              "questions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "text": {"type": "string"},
+                    "options": {"type": "array", "items": {"type": "string"}},
+                    "answer": {"type": "string"}
+                  }
+                }
+              },
+              "considerations": {"type": "string"}
+            }
+          },
+          "media": {
+            "type": "object",
+            "properties": {
+              "video_timestamps": {"type": "array", "items": {"type": "string"}},
+              "screenshots": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "file": {"type": "string"},
+                    "alt_text": {"type": "string"}
+                  }
+                }
+              }
+            }
+          },
+          "accessibility": {
+            "type": "object",
+            "properties": {
+              "alt_text": {"type": "string"},
+              "captions": {"type": "string"}
+            }
+          },
+          "troubleshooting": {"type": "array", "items": {"type": "string"}},
+          "related_steps": {
+            "type": "object",
+            "properties": {
+              "previous": {"type": "string"},
+              "next": {"type": "string"},
+              "related": {"type": "array", "items": {"type": "string"}}
+            }
+          },
+          "resources": {"type": "array", "items": {"type": "string"}},
+          "version": {
+            "type": "object",
+            "properties": {
+              "number": {"type": "string"},
+              "author": {"type": "string"},
+              "modified": {"type": "string"}
+            }
+          }
+        },
+        "required": ["step_title", "step_id", "actions"]
+      }
+    },
+    "success_metrics": {
+      "type": "object",
+      "properties": {
+        "quantitative": {"type": "string"},
+        "qualitative": {"type": "string"}
+      }
+    },
+    "regulatory_standards": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Compliance requirements"
+    },
+    "environmental_needs": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Required physical conditions"
+    },
+    "collaboration_requirements": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Team roles/external support"
+    },
+    "ethical_considerations": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Moral/legal implications"
+    },
+    "certification_requirements": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Required credentials"
+    },
+    "cost_estimate": {
+      "type": "object",
+      "properties": {
+        "per_unit": {"type": "string"},
+        "total": {"type": "string"}
+      }
+    },
+    "validation_protocols": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Quality assurance processes"
+    }
+  },
+  "required": ["task_overview", "tools_equipment", "steps"],
+  "additionalProperties": false
+}

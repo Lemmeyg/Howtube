@@ -84,7 +84,7 @@ export function handleOpenAIError(error: unknown): OpenAIError {
 
 // Configuration constants
 export const OPENAI_CONFIG = {
-  model: process.env.OPENAI_MODEL || 'gpt-4-turbo-preview',
+  model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
   maxTokens: parseInt(process.env.OPENAI_MAX_TOKENS || '4000', 10),
   temperature: parseFloat(process.env.OPENAI_TEMPERATURE || '0.7'),
 } as const; 
